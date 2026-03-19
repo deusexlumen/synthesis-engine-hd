@@ -1,0 +1,489 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// 1. CORE USER & AUTH with RBAC
+// ============================================================
+model User {
+  id                 String              @id @default(uuid())
+  email              String              @unique
+  passwordHash       String?             // Nullable for OAuth-only users
+  emailVerified      Boolean             @default(false)
+  emailVerifyToken   String?             @unique
+  passwordResetToken String?             @unique
+  passwordResetAt    DateTime?
+  status             UserStatus          @default(ACTIVE)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  lastLoginAt        DateTime?
+  
+  // Relations
+  millmanProfile     MillmanProfile?
+  humanDesignProfile HumanDesignProfile?
+  geneKeysProfile    GeneKeysProfile?
+  synthesisCaches    SynthesisCache[]
+  dailyCoaching      DailyCoaching[]
+  
+  // Auth & RBAC
+  sessions           Session[]
+  refreshTokens      RefreshToken[]
+  roles              UserRole[]
+  subscription       Subscription?
+  auditLogs          AuditLog[]
+  
+  @@index([email])
+  @@index([status])
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+// RBAC: Roles
+model Role {
+  id          String       @id @default(uuid())
+  name        RoleName     @unique
+  description String?
+  createdAt   DateTime     @default(now())
+  
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+enum RoleName {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+model UserRole {
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  @@id([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+// RBAC: Granular Permissions
+model Permission {
+  id          String    @id @default(uuid())
+  resource    String    // e.g., "chart", "user", "admin"
+  action      String    // e.g., "create", "read", "update", "delete"
+  description String?
+  createdAt   DateTime  @default(now())
+  
+  roles RolePermission[]
+  
+  @@unique([resource, action])
+  @@index([resource])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  
+  @@id([roleId, permissionId])
+}
+
+// Sessions for tracking
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+// Refresh Tokens
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  token     String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  replacedByToken String?
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+// Audit Logs for security
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  action      String   // LOGIN, LOGOUT, PASSWORD_CHANGE, etc.
+  resource    String?  // Which entity was affected
+  resourceId  String?  // ID of affected entity
+  details     Json?    // Additional context
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============================================================
+// 2. SUBSCRIPTION MANAGEMENT (Stripe Integration)
+// ============================================================
+model Subscription {
+  id                String              @id @default(uuid())
+  userId            String              @unique
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Tier & Status
+  tier              SubscriptionTier    @default(FREE)
+  status            SubscriptionStatus  @default(INACTIVE)
+  
+  // Stripe Integration
+  stripeCustomerId       String?
+  stripeSubscriptionId   String?
+  stripePriceId          String?
+  
+  // Billing Period
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean          @default(false)
+  
+  // Trial
+  trialStart             DateTime?
+  trialEnd               DateTime?
+  
+  // Features (cached for performance)
+  features          Json?    // { maxCharts: 5, aiCoach: false }
+  
+  // Payment History
+  invoices               Invoice[]
+  
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  
+  @@index([userId])
+  @@index([stripeCustomerId])
+  @@index([status])
+  @@index([tier])
+}
+
+enum SubscriptionTier {
+  FREE
+  BASIC
+  PREMIUM
+  PRO
+}
+
+enum SubscriptionStatus {
+  INACTIVE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  PAUSED
+}
+
+model Invoice {
+  id              String   @id @default(uuid())
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  
+  stripeInvoiceId String   @unique
+  amount          Int      // In cents
+  currency        String   @default("eur")
+  status          String   // paid, open, void, uncollectible
+  paidAt          DateTime?
+  pdfUrl          String?
+  createdAt       DateTime @default(now())
+  
+  @@index([subscriptionId])
+  @@index([stripeInvoiceId])
+}
+
+// ============================================================
+// 3. DAN MILLMAN NUMEROLOGY ENGINE
+// ============================================================
+model MillmanProfile {
+  id               String  @id @default(uuid())
+  userId           String  @unique
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  lifePathString   String  @db.VarChar(10)
+  root1            Int
+  root2            Int
+  baseSum          Int
+  destinyNumber    Int
+  
+  hasMasterNumber  Boolean @default(false)
+  hasZeroEnhancer  Boolean @default(false)
+  
+  soulUrgeString   String? @db.VarChar(10)
+  expressionString String? @db.VarChar(10)
+  
+  personalYear     Int
+  
+  challenges       Json
+  pinnacles        Json
+  
+  @@index([destinyNumber])
+  @@index([lifePathString])
+}
+
+// ============================================================
+// 4. HUMAN DESIGN & GENE KEYS ENGINE
+// ============================================================
+model HumanDesignProfile {
+  id               String       @id @default(uuid())
+  userId           String       @unique
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  energyType       EnergyType
+  authority        Authority
+  profileLine1     Int
+  profileLine2     Int
+  incarnationCross String
+  
+  centers          ChartCenter[]
+  gates            ChartGate[]
+  channels         ChartChannel[]
+  
+  variables        Json
+  
+  @@index([energyType])
+  @@index([profileLine1, profileLine2])
+}
+
+model ChartCenter {
+  id                   String             @id @default(uuid())
+  humanDesignProfileId String
+  profile              HumanDesignProfile @relation(fields: [humanDesignProfileId], references: [id], onDelete: Cascade)
+  
+  name                 CenterName
+  isDefined            Boolean
+  
+  @@unique([humanDesignProfileId, name])
+  @@index([name, isDefined])
+}
+
+model ChartGate {
+  id                   String             @id @default(uuid())
+  humanDesignProfileId String
+  profile              HumanDesignProfile @relation(fields: [humanDesignProfileId], references: [id], onDelete: Cascade)
+  
+  gateNumber           Int
+  line                 Int
+  color                Int
+  tone                 Int
+  base                 Int
+  planet               Planet
+  isDesign             Boolean
+  
+  @@index([gateNumber])
+  @@index([planet])
+}
+
+model ChartChannel {
+  id                   String             @id @default(uuid())
+  humanDesignProfileId String
+  profile              HumanDesignProfile @relation(fields: [humanDesignProfileId], references: [id], onDelete: Cascade)
+  
+  gate1                Int
+  gate2                Int
+  
+  @@unique([humanDesignProfileId, gate1, gate2])
+}
+
+enum EnergyType { 
+  MANIFESTOR 
+  GENERATOR 
+  MANIFESTING_GENERATOR 
+  PROJECTOR 
+  REFLECTOR 
+}
+
+enum Authority { 
+  EMOTIONAL 
+  SACRAL 
+  SPLENIC 
+  EGO 
+  SELF_PROJECTED 
+  MENTAL 
+  LUNAR 
+}
+
+enum CenterName { 
+  HEAD 
+  AJNA 
+  THROAT 
+  G_CENTER 
+  HEART 
+  SACRAL 
+  ROOT 
+  SPLEEN 
+  SOLAR_PLEXUS 
+}
+
+enum Planet { 
+  SUN 
+  EARTH 
+  NORTH_NODE 
+  SOUTH_NODE 
+  MOON 
+  MERCURY 
+  VENUS 
+  MARS 
+  JUPITER 
+  SATURN 
+  URANUS 
+  NEPTUNE 
+  PLUTO 
+}
+
+// ============================================================
+// 5. GENE KEYS PROFILE
+// ============================================================
+model GeneKeysProfile {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  lifeWork             Int
+  evolution            Int
+  radiance             Int
+  purpose              Int
+  attraction           Int
+  iq                   Int
+  eq                   Int
+  sq                   Int
+  vq                   Int
+  culture              Int
+  pearl                Int
+  
+  activations          GeneKeyActivation[]
+  
+  @@index([lifeWork])
+}
+
+model GeneKeyActivation {
+  id                String          @id @default(uuid())
+  geneKeysProfileId String
+  profile           GeneKeysProfile @relation(fields: [geneKeysProfileId], references: [id], onDelete: Cascade)
+  
+  geneKeyNumber     Int
+  shadow            String
+  gift              String
+  siddhi            String
+  isActive          Boolean         @default(false)
+  
+  @@unique([geneKeysProfileId, geneKeyNumber])
+}
+
+// ============================================================
+// 6. AI SYNTHESIS CACHE
+// ============================================================
+model SynthesisCache {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  contextKey     String
+  section        String
+  generatedText  String   @db.Text
+  cacheVersion   Int      @default(1)
+  expiresAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@unique([userId, contextKey, section])
+  @@index([userId, contextKey])
+  @@index([expiresAt])
+}
+
+// ============================================================
+// 7. DAILY COACHING
+// ============================================================
+model DailyCoaching {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  date        DateTime
+  transitData Json
+  impulseText String   @db.Text
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+// ============================================================
+// 8. TRANSIT DATA
+// ============================================================
+model TransitData {
+  id          String   @id @default(uuid())
+  date        DateTime @unique
+  
+  sunGate     Int
+  sunLine     Int
+  moonGate    Int
+  moonLine    Int
+  
+  mercuryGate Int?
+  venusGate   Int?
+  marsGate    Int?
+  jupiterGate Int?
+  saturnGate  Int?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([date])
+}
+
+// ============================================================
+// 9. COMMUNITY STATS
+// ============================================================
+model CommunityStats {
+  id              String   @id @default(uuid())
+  
+  statType        String
+  statKey         String
+  count           Int      @default(0)
+  percentage      Float    @default(0)
+  
+  lastUpdated     DateTime @updatedAt
+  
+  @@unique([statType, statKey])
+  @@index([statType])
+}

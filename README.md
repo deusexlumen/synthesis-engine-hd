@@ -1,126 +1,334 @@
-# Synthesis Engine
+<div align="center">
 
-Eine transformative App, die Human Design, Gene Keys und Dan Millman Numerologie mit KI-gestützter Synthese verbindet.
+# 🔮 Synthesis Engine
 
-## Features
+### *Wo Wissenschaft auf Spiritualität trifft*
 
-### Core-Module
+[![React](https://img.shields.io/badge/React-19.2-61DAFB?logo=react)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)](https://www.typescriptlang.org)
+[![Tauri](https://img.shields.io/badge/Tauri-v2-FFC131?logo=tauri)](https://tauri.app)
+[![Rust](https://img.shields.io/badge/Rust-1.70+-000000?logo=rust)](https://www.rust-lang.org)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-- **Human Design Chart** - Vollständige Berechnung mit BodyGraph-Visualisierung
-- **Gene Keys** - Alle 64 Gene Keys mit Schatten, Gabe und Siddhi
-- **Dan Millman Numerologie** - Lebensweg, Schicksal, Seelenverlangen und mehr
-- **KI-Synthese** - Personalisierte Einblicke durch OpenAI/Anthropic/Google AI
+**Eine transformative Desktop-App zur Synthese von Human Design, Gene Keys und Dan Millman Numerologie mit KI-gestützter Kreuzkorrelationsanalyse**
 
-### Zusätzliche Features
+[🚀 Features](#features) • [📦 Installation](#installation) • [🏗️ Architektur](#architektur) • [📚 Dokumentation](#dokumentation)
 
-- **Planetare Transits** - Tägliche Planetenpositionen und Aktivierungen
-- **Verschlüsseltes Journal** - AES-256-GCM verschlüsselte Einträge
-- **PDF-Export** - Exportiere Charts und Reports als PDF
-- **Einstellungen** - Umfassende App-Konfiguration
+</div>
 
-## Technologie-Stack
+---
 
-### Frontend
-- React + TypeScript + Vite
-- Tailwind CSS für Styling
-- Framer Motion für Animationen
-- Tauri v2 für Desktop-App
+## ✨ Features
 
-### Backend
-- Rust (Tauri Commands) für lokale Berechnungen
-- Node.js + Express für API
-- Prisma ORM + PostgreSQL
-- OpenAI/Anthropic/Google AI Integration
+### 🔷 Human Design
+- **Vollständige Chart-Berechnung** basierend auf Ra Uru Hu's System
+- **9 Zentren** mit individueller Definition
+- **Energie-Typ** (Manifestor, Generator, Manifesting Generator, Projector, Reflector)
+- **Autorität** (emotionale, sakrale, Selbst-projizierte, etc.)
+- **Profil** (Linien 1-6 Kombinationen)
+- **64 Tor-Aktivierungen** mit planetaren Positionen
+- **Kanal-Analyse** für definierte Verbindungen
+- **SVG BodyGraph-Visualisierung**
 
-### Sicherheit
-- AES-256-GCM Verschlüsselung für lokale Daten
-- JWT-Authentifizierung
-- Rate Limiting
+### 🔑 Gene Keys
+- **Alle 64 Gene Keys** mit detaillierten Beschreibungen
+- **Drei Frequenzen**: Schatten → Gabe → Siddhi
+- **Hologenetisches Profil**
+- **Pearl-Sequenzen** (64 verschiedene Kombinationen)
+- **Kontemplations-Fragen & Affirmationen**
+- **Gene Keys Sektion** mit durchdachtem Design
 
-## Installation
+### 🔢 Dan Millman Numerologie
+- **Lebensweg-Berechnung** (z.B. 35/8)
+- **Wurzelzahlen** und ihre Bedeutungen
+- **Meisterzahlen** (11, 22, 33) Erkennung
+- **Null-Verstärker** Logik
+- **Seelenweg** (Vokale aus dem Namen)
+- **Berufsweg** (Konsonanten aus dem Namen)
+- **Herausforderungen** (1., 2., 3., 4.)
+- **Höhepunkte** nach Lebensaltern
+- **Persönliches Jahr** Berechnung
+
+### 🤖 KI-Synthese
+- **Multi-Provider Support**: OpenAI GPT-4o-mini, Anthropic Claude, Google Gemini
+- **Sokratischer, reflektierender Stil** (nicht belehrend)
+- **Kreuzkorrelationsanalyse** aller drei Systeme
+- **Personalisierte Coaching-Impulse**
+- **30-Tage Cache** für KI-generierte Inhalte
+
+### 🌟 Zusätzliche Features
+- **🪐 Planetare Transits**: Tägliche Planetenpositionen und Vergleich mit Natal-Chart
+- **📓 Verschlüsseltes Journal**: AES-256-GCM verschlüsselte Einträge mit Stimmungs-Tracking
+- **📄 PDF-Export**: Exportiere Charts, Reports und Journal-Einträge
+- **🌍 Smart Geocoding**: Open-Meteo Integration für Ortsuche und Zeitzonenerkennung
+- **🎨 Neo-Mystic Design**: Dark Mode, Glassmorphism, Framer Motion Animationen
+
+---
+
+## 🖥️ Screenshots
+
+> *Screenshots werden nach dem ersten Release hinzugefügt*
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Synthesis Engine                                           │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  BodyGraph Visualisierung                           │   │
+│  │  ╭───────────────────────────────╮                  │   │
+│  │  │        [9 Zentren]            │   Numerologie    │   │
+│  │  │         [Kanäle]              │   ┌──────────┐   │   │
+│  │  │      [Tor-Aktivierungen]      │   │ Lebensweg│   │   │
+│  │  ╰───────────────────────────────╯   │   35/8   │   │   │
+│  │                                        └──────────┘   │   │
+│  └─────────────────────────────────────────────────────┘   │
+│  Gene Keys • Transits • Journal • KI-Coaching              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📦 Installation
 
 ### Voraussetzungen
-- Node.js 18+
-- Rust (für Tauri)
-- PostgreSQL (für Backend)
 
-### Setup
+| Komponente | Version | Download |
+|------------|---------|----------|
+| Node.js | 20+ | [nodejs.org](https://nodejs.org) |
+| Rust | 1.70+ | [rustup.rs](https://rustup.rs) |
+| PostgreSQL | 15+ | [postgresql.org](https://postgresql.org) |
+
+### Schnellstart
 
 ```bash
-# Frontend
-npm install
-npm run dev
+# 1. Repository klonen
+git clone https://github.com/username/synthesis-engine.git
+cd synthesis-engine
 
-# Backend
+# 2. Frontend & Backend installieren
+npm install
+cd backend && npm install && cd ..
+
+# 3. Datenbank konfigurieren
 cd backend
-npm install
+cp .env.example .env
+# .env mit deinen PostgreSQL-Credentials anpassen
+npx prisma generate
 npx prisma migrate dev
-npm run dev
 
-# Tauri Desktop
+cd ..
+
+# 4. Desktop-App starten
 npm run tauri dev
 ```
 
-## Verzeichnisstruktur
+### Alternative: Nur Web-Version
 
-```
-app/
-├── src/
-│   ├── components/     # React-Komponenten
-│   ├── sections/       # Hauptsektionen
-│   ├── lib/           # Utilities & Daten
-│   ├── services/      # API-Services
-│   └── types/         # TypeScript-Typen
-├── src-tauri/         # Rust Backend
-└── public/            # Statische Assets
-
-backend/
-├── src/
-│   ├── routes/        # API-Routen
-│   ├── services/      # Business-Logik
-│   ├── middleware/    # Auth, Error Handling
-│   └── lib/           # Utilities
-└── prisma/            # Datenbank-Schema
+```bash
+cd app
+npm install
+npm run dev
 ```
 
-## API-Endpunkte
+### Build für Produktion
 
-### Auth
-- `POST /api/auth/register` - Registrierung
-- `POST /api/auth/login` - Login
-- `GET /api/auth/me` - Profil abrufen
+```bash
+# Desktop-Apps bauen (.exe, .dmg, .appimage)
+npm run tauri build
 
-### Human Design
-- `POST /api/hd/calculate` - Chart berechnen
-- `GET /api/hd/profile/:id` - Profil abrufen
-
-### Numerologie
-- `POST /api/numerology/calculate` - Berechnung
-- `GET /api/numerology/profile/:id` - Profil abrufen
-
-### Transit
-- `GET /api/transit/daily` - Tägliche Transits
-- `GET /api/transit/today` - Heutige Transits
-- `GET /api/transit/compare` - Vergleich mit Natal
-
-### KI
-- `POST /api/ai/chat` - Chat-Completion
-- `POST /api/synthesis` - KI-Synthese
-
-## Umgebungsvariablen
-
-```env
-# Backend
-DATABASE_URL="postgresql://user:pass@localhost:5432/synthesis"
-JWT_SECRET="your-secret"
-OPENAI_API_KEY="sk-..."
-ANTHROPIC_API_KEY="sk-ant-..."
-GOOGLE_AI_API_KEY="..."
-
-# Frontend
-VITE_API_URL="http://localhost:3000"
+# Web-Version bauen
+cd app
+npm run build
 ```
 
-## Lizenz
+---
 
-MIT
+## 🏗️ Architektur
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           FRONTEND (React + Tauri)                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
+│  │  BodyGraph   │  │  Numerology  │  │  Gene Keys   │  │   Journal    │ │
+│  │  Component   │  │   Component  │  │   Display    │  │    Editor    │ │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘ │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │                     Zustand State Management                       │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      TAURI BRIDGE (Rust)                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
+│  │   Human      │  │  Numerology  │  │   Transit    │  │   Storage    │ │
+│  │   Design     │  │    Calc      │  │     Calc     │  │ (AES-256)    │ │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘ │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │              Swiss Ephemeris (libswe-sys)                          │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      BACKEND API (Node.js + Express)                    │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
+│  │  Auth (JWT)  │  │  Synthesis   │  │  AI Proxy    │  │   Transit    │ │
+│  │   Routes     │  │   Routes     │  │   Routes     │  │   Routes     │ │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘ │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │              Prisma ORM + PostgreSQL                               │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Technologie-Stack
+
+#### Frontend
+| Technologie | Zweck |
+|-------------|-------|
+| React 19.2 | UI Framework |
+| TypeScript 5.9 | Typisierung |
+| Vite 7.2 | Build Tool |
+| Tailwind CSS 3.4 | Styling |
+| Framer Motion | Animationen |
+| shadcn/ui | UI Komponenten |
+| Zustand | State Management |
+| Tauri v2 | Desktop-Wrapper |
+
+#### Backend
+| Technologie | Zweck |
+|-------------|-------|
+| Express 4.18 | API Server |
+| Prisma 5.6 | ORM |
+| OpenAI SDK | KI-Integration |
+| Supabase | Auth & Datenbank |
+| Zod | Validierung |
+
+#### Rust (Tauri Core)
+| Crate | Zweck |
+|-------|-------|
+| tauri 2.0 | Framework |
+| libswe-sys | Swiss Ephemeris |
+| aes-gcm | Verschlüsselung |
+| argon2 | Passwort-Hashing |
+| chrono | Datumsberechnungen |
+
+---
+
+## 📚 Dokumentation
+
+Detaillierte Dokumentation findest du in den folgenden Dateien:
+
+| Dokument | Inhalt |
+|----------|--------|
+| [`AGENTS.md`](AGENTS.md) | Technische Dokumentation für Entwickler |
+| [`IMPLEMENTATION_SUMMARY.md`](IMPLEMENTATION_SUMMARY.md) | Implementierungsstatus & Roadmap |
+| [`SYNTHESIS_ENGINE_EXECUTIVE_SUMMARY.md`](SYNTHESIS_ENGINE_EXECUTIVE_SUMMARY.md) | Executive Summary |
+| [`DATABASE_SETUP.md`](DATABASE_SETUP.md) | Datenbank-Setup Anleitung |
+| [`SUPABASE_SETUP.md`](SUPABASE_SETUP.md) | Supabase Konfiguration |
+
+### API-Endpunkte
+
+#### Authentifizierung
+```
+POST   /api/auth/register     # Registrierung
+POST   /api/auth/login        # Login
+GET    /api/auth/me           # Profil abrufen
+```
+
+#### Human Design
+```
+POST   /api/hd/calculate      # Chart berechnen
+GET    /api/hd/profile/:id    # Profil abrufen
+```
+
+#### Numerologie
+```
+POST   /api/numerology/calculate    # Berechnung
+GET    /api/numerology/profile/:id  # Profil abrufen
+```
+
+#### Transit
+```
+GET    /api/transit/daily     # Tägliche Transits
+GET    /api/transit/today     # Heutige Transits
+GET    /api/transit/compare   # Vergleich mit Natal
+GET    /api/transit/range     # Zeitraum-Transits
+```
+
+#### KI
+```
+POST   /api/ai/chat           # Chat-Completion
+POST   /api/synthesis         # KI-Synthese
+```
+
+---
+
+## 🔒 Sicherheit
+
+- **🔐 AES-256-GCM** Verschlüsselung für lokale Journal-Einträge
+- **🗝️ Argon2** für sichere Key-Derivation
+- **🛡️ JWT** für API-Authentifizierung
+- **⚡ Rate Limiting** (100 Requests/Min)
+- **🚫 Geburtsdaten** bleiben lokal, werden nie an Cloud gesendet
+
+---
+
+## 🗺️ Roadmap
+
+### ✅ Abgeschlossen (Phase 1-4)
+- [x] Human Design Berechnungen
+- [x] Dan Millman Numerologie
+- [x] Gene Keys Integration
+- [x] KI-Synthese
+- [x] Planetare Transits
+- [x] Verschlüsseltes Journal
+- [x] PDF-Export
+- [x] Tauri v2 Migration
+
+### 🚧 Geplant (Zukünftige Releases)
+- [ ] **Swiss Ephemeris Integration** (Professionelle astronomische Genauigkeit)
+- [ ] **Mobile App** (React Native / Capacitor)
+- [ ] **Cloud-Sync** (Optionaler Backup)
+- [ ] **Transit-Kalender** mit Benachrichtigungen
+- [ ] **Community-Features** (Anonyme Insights)
+- [ ] **Erweiterte KI-Prompts** mit besserer Kontext-Kombination
+
+---
+
+## 🤝 Mitwirken
+
+Beiträge sind willkommen! Bitte beachte:
+
+1. **Fork** das Repository
+2. Erstelle einen **Feature Branch** (`git checkout -b feature/AmazingFeature`)
+3. **Commit** deine Änderungen (`git commit -m 'Add some AmazingFeature'`)
+4. **Push** zum Branch (`git push origin feature/AmazingFeature`)
+5. Öffne einen **Pull Request**
+
+Siehe [`AGENTS.md`](AGENTS.md) für detaillierte Code-Richtlinien.
+
+---
+
+## 📝 Lizenz
+
+Dieses Projekt ist unter der MIT-Lizenz lizenziert - siehe die [LICENSE](LICENSE) Datei für Details.
+
+---
+
+## 🙏 Danksagungen
+
+- **Human Design** - Basierend auf Ra Uru Hu's System
+- **Gene Keys** - Richard Rudd's System
+- **Numerologie** - Dan Millman's "The Life You Were Born to Live"
+- **Swiss Ephemeris** - Astronomische Berechnungen
+
+---
+
+<div align="center">
+
+**[⬆ Nach oben](#-synthesis-engine)**
+
+Made with 💜 and ☕
+
+</div>

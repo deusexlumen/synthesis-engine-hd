@@ -1,5 +1,36 @@
 import { LoginForm } from '@/components/auth';
+import { useAuthStore } from '@/stores/authStore';
+import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+
+function GuestLoginButton() {
+  const navigate = useNavigate();
+  const loginAsGuest = useAuthStore((state) => state.loginAsGuest);
+
+  return (
+    <div className="text-center">
+      <div className="relative flex py-4 items-center">
+        <div className="flex-grow border-t border-white/10"></div>
+        <span className="flex-shrink mx-4 text-white/40 text-sm">oder</span>
+        <div className="flex-grow border-t border-white/10"></div>
+      </div>
+      <Button
+        variant="outline"
+        onClick={() => {
+          loginAsGuest();
+          navigate('/');
+        }}
+        className="w-full bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white"
+      >
+        Als Gast fortfahren (Demo)
+      </Button>
+      <p className="mt-2 text-xs text-white/40">
+        Keine Registrierung nötig. Alle Berechnungen laufen lokal.
+      </p>
+    </div>
+  );
+}
 
 export default function LoginPage() {
   return (
@@ -55,8 +86,9 @@ export default function LoginPage() {
 
       {/* Main Content */}
       <main className="relative z-10 min-h-[calc(100vh-100px)] flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md space-y-6">
           <LoginForm />
+          <GuestLoginButton />
         </div>
       </main>
     </div>

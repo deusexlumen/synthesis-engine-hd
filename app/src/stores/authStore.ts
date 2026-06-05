@@ -50,6 +50,7 @@ interface AuthState {
   refreshToken: () => Promise<boolean>;
   checkAuth: () => Promise<void>;
   clearError: () => void;
+  loginAsGuest: () => void;
   
   // RBAC helpers
   hasRole: (role: string | string[]) => boolean;
@@ -103,6 +104,21 @@ export const useAuthStore = create<AuthState>()(
 
         clearError: () =>
           set((state) => {
+            state.error = null;
+          }),
+
+        // Guest mode for offline/desktop demo
+        loginAsGuest: () =>
+          set((state) => {
+            state.user = {
+              id: 'guest',
+              email: 'guest@demo.local',
+              emailVerified: true,
+              roles: ['USER'],
+              subscription: { tier: 'PRO' as const, status: 'active' },
+            };
+            state.isAuthenticated = true;
+            state.isLoading = false;
             state.error = null;
           }),
 

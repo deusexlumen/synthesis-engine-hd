@@ -12,7 +12,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { api, withRetry, APIError, NetworkError } from '@/lib/api';
+import { api } from '@/lib/api';
+// NOTE: HD calculations are done locally via Tauri (desktop) or JS fallback (web)
+// Birth data is NEVER sent to any backend server for privacy protection
 import { toast } from '@/components/Toast';
 import { OnboardingStepSkeleton } from '@/components/Skeleton';
 import { useAppStore } from '@/stores/appStore';
@@ -44,7 +46,7 @@ const STEPS: Step[] = ['welcome', 'name', 'birthdate', 'birthtime', 'birthplace'
 
 export function OnboardingFlow() {
   // Store actions
-  const setBirthData = useAppStore((state) => state.setBirthData);
+  const setUserData = useAppStore((state) => state.setUserData);
   const setLoading = useAppStore((state) => state.setLoading);
   const setStep = useAppStore((state) => state.setStep);
 
@@ -199,47 +201,21 @@ export function OnboardingFlow() {
       country: selectedLocation.country,
     };
 
-    try {
-      const result = await withRetry(() => api.calculateHD(birthData), 3, 1000);
+    // Store user data locally — birth data NEVER leaves the device
+    const userData = {
+      fullName: birthData.name,
+      birthDate: birthData.birthDate,
+      birthTime: birthData.birthTime,
+      birthPlace: selectedLocation.name,
+      latitude: birthData.latitude,
+      longitude: birthData.longitude,
+      timezone: timezone, // IANA timezone string
+    };
 
-      // Transform to store format
-      const userData = {
-        fullName: birthData.name,
-        birthDate: birthData.birthDate,
-        birthTime: birthData.birthTime,
-        birthPlace: selectedLocation.name,
-        latitude: birthData.latitude,
-        longitude: birthData.longitude,
-        timezone: parseFloat(timezone) || 1,
-      };
-
-      setBirthData({
-        userData,
-        hdChart: result.hdChart,
-        millmanProfile: result.millmanProfile,
-      });
-
-      toast.success(
-        'Berechnung erfolgreich',
-        `Typ: ${result.hdChart.energyType.replace('_', ' ')} | Lebenszahl: ${result.millmanProfile.destinyNumber}`
-      );
-
-      setStep('results');
-    } catch (error) {
-      console.error('Calculation failed:', error);
-
-      if (error instanceof APIError) {
-        toast.error('Berechnung fehlgeschlagen', error.message);
-      } else if (error instanceof NetworkError) {
-        toast.error('Netzwerkfehler', 'Bitte überprüfe deine Internetverbindung');
-      } else {
-        toast.error('Fehler', 'Ein unerwarteter Fehler ist aufgetreten');
-      }
-    } finally {
-      setIsSubmitting(false);
-      setLoading(false);
-    }
-  }, [birthDate, selectedLocation, name, birthTime, timezone, setBirthData, setLoading, setStep]);
+    setUserData(userData);
+    setIsSubmitting(false);
+    setStep('processing');
+  }, [birthDate, selectedLocation, name, birthTime, timezone, setUserData, setStep]);
 
   // ============================================================================
   // STEP COMPONENTS

@@ -19,13 +19,13 @@ echo ""
 # Check Node.js version
 echo "Checking Node.js..."
 if ! command -v node &> /dev/null; then
-    echo -e "${RED}✗ Node.js not found! Please install Node.js 18+${NC}"
+    echo -e "${RED}✗ Node.js not found! Please install Node.js 20+${NC}"
     exit 1
 fi
 
 NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 18 ]; then
-    echo -e "${RED}✗ Node.js version must be 18+. Found: $(node -v)${NC}"
+if [ "$NODE_VERSION" -lt 20 ]; then
+    echo -e "${RED}✗ Node.js version must be 20+. Found: $(node -v)${NC}"
     exit 1
 fi
 echo -e "${GREEN}✓ Node.js $(node -v)${NC}"

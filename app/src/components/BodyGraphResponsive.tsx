@@ -65,7 +65,7 @@ const CHANNELS: [keyof typeof CENTERS, keyof typeof CENTERS][] = [
 
 // Gate positions (simplified for performance)
 const GATES: Record<number, { x: number; y: number }> = {
-  64: { x: 45, y: 5 }, 61: { x: 50, y: 3 }, 63: { x: 55, y: 5 }, 60: { x: 50, y: 7 },
+  64: { x: 45, y: 5 }, 61: { x: 50, y: 3 }, 63: { x: 55, y: 5 },
   47: { x: 45, y: 17 }, 24: { x: 55, y: 17 }, 4: { x: 47, y: 22 }, 11: { x: 53, y: 22 },
   56: { x: 35, y: 30 }, 35: { x: 42, y: 28 }, 12: { x: 46, y: 30 }, 45: { x: 50, y: 28 },
   33: { x: 54, y: 30 }, 20: { x: 58, y: 28 }, 31: { x: 62, y: 30 }, 8: { x: 65, y: 32 },

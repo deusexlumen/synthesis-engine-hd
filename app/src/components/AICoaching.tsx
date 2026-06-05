@@ -280,7 +280,7 @@ async function callAI(
 ): Promise<string> {
   let url: string;
   let headers: Record<string, string>;
-  let body: any;
+  let body: Record<string, unknown>;
 
   switch (provider) {
     case 'openai':

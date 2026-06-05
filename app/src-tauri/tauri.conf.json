@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.synthesis.engine",
   "build": {
-    "beforeDevCommand": "cd .. && npm run dev",
-    "beforeBuildCommand": "cd .. && npm run build",
+    "beforeDevCommand": "cd .. && pnpm dev",
+    "beforeBuildCommand": "echo Frontend already built",
     "devUrl": "http://localhost:5173",
     "frontendDist": "../dist"
   },
@@ -39,8 +39,6 @@
           "permissions": [
             "core:default",
             "fs:default",
-            "fs:read-app-meta",
-            "fs:write-app-meta",
             "shell:default"
           ]
         }

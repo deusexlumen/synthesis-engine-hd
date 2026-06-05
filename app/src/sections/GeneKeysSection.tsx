@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { GeneKeysDisplay } from '../components/GeneKeysDisplay';
-import { invoke } from '@tauri-apps/api/core';
 import { Sparkles, BookOpen, Dna, Quote } from 'lucide-react';
 import { GeneKeyProfile, calculateGeneKeyProfile } from '../lib/geneKeys';
 

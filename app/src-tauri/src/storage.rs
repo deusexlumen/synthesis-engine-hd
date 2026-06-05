@@ -2,10 +2,8 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
-use argon2::{
-    password_hash::{rand_core::RngCore, SaltString},
-    Argon2,
-};
+use base64::Engine;
+use rand::RngCore;
 use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
@@ -13,6 +11,8 @@ use tauri::Manager;
 const APP_DIR: &str = "synthesis-engine";
 const JOURNAL_DIR: &str = "journal";
 const KEY_FILE: &str = "master.key";
+const KEYRING_SERVICE: &str = "synthesis-engine";
+const KEYRING_USER: &str = "journal-master-key";
 
 #[derive(Debug)]
 pub struct StorageError {
@@ -39,6 +39,14 @@ impl From<aes_gcm::Error> for StorageError {
     fn from(error: aes_gcm::Error) -> Self {
         StorageError {
             message: format!("Encryption error: {}", error),
+        }
+    }
+}
+
+impl From<keyring::Error> for StorageError {
+    fn from(error: keyring::Error) -> Self {
+        StorageError {
+            message: format!("Keyring error: {}", error),
         }
     }
 }
@@ -71,29 +79,95 @@ fn get_journal_dir(app_handle: &tauri::AppHandle) -> Result<PathBuf, StorageErro
     Ok(journal_dir)
 }
 
-// Generate or load encryption key
-// In production, this should use the OS keychain
-fn get_or_create_key(app_handle: &tauri::AppHandle) -> Result<[u8; 32], StorageError> {
+// Try to load the key from the OS keychain
+fn load_key_from_keychain() -> Result<Option<[u8; 32]>, StorageError> {
+    let entry = match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) {
+        Ok(e) => e,
+        Err(_) => return Ok(None),
+    };
+
+    match entry.get_password() {
+        Ok(encoded) => {
+            let decoded = base64::engine::general_purpose::STANDARD
+                .decode(encoded)
+                .map_err(|e| StorageError {
+                    message: format!("Failed to decode key from keychain: {}", e),
+                })?;
+            if decoded.len() == 32 {
+                let mut key = [0u8; 32];
+                key.copy_from_slice(&decoded);
+                Ok(Some(key))
+            } else {
+                Ok(None)
+            }
+        }
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
+// Store the key in the OS keychain (best-effort; falls back to file on failure)
+fn save_key_to_keychain(key: &[u8; 32]) -> Result<(), StorageError> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)?;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(key);
+    entry.set_password(&encoded)?;
+    Ok(())
+}
+
+// Fallback: load key from file
+fn load_key_from_file(app_handle: &tauri::AppHandle) -> Result<Option<[u8; 32]>, StorageError> {
     let app_dir = get_app_dir(app_handle)?;
     let key_file = app_dir.join(KEY_FILE);
-    
-    if key_file.exists() {
-        // Load existing key
-        let key_bytes = fs::read(&key_file)?;
-        if key_bytes.len() == 32 {
-            let mut key = [0u8; 32];
-            key.copy_from_slice(&key_bytes);
-            return Ok(key);
-        }
+
+    if !key_file.exists() {
+        return Ok(None);
     }
-    
-    // Generate new key
+
+    let key_bytes = fs::read(&key_file)?;
+    if key_bytes.len() == 32 {
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&key_bytes);
+        Ok(Some(key))
+    } else {
+        Ok(None)
+    }
+}
+
+// Fallback: save key to file
+fn save_key_to_file(app_handle: &tauri::AppHandle, key: &[u8; 32]) -> Result<(), StorageError> {
+    let app_dir = get_app_dir(app_handle)?;
+    let key_file = app_dir.join(KEY_FILE);
+    fs::write(&key_file, key.as_slice())?;
+    Ok(())
+}
+
+// Generate or load encryption key
+// Prefers OS keychain; falls back to file-based storage if keychain is unavailable
+fn get_or_create_key(app_handle: &tauri::AppHandle) -> Result<[u8; 32], StorageError> {
+    // 1. Try OS keychain first
+    if let Some(key) = load_key_from_keychain()? {
+        return Ok(key);
+    }
+
+    // 2. Try legacy file fallback (for migration from older versions)
+    if let Some(key) = load_key_from_file(app_handle)? {
+        // Migrate to keychain if possible
+        if let Err(e) = save_key_to_keychain(&key) {
+            eprintln!("[synthesis-engine] Warning: Failed to migrate key to keychain: {}. Falling back to file storage.", e);
+        }
+        return Ok(key);
+    }
+
+    // 3. Generate new key
     let mut key = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut key);
-    
-    // Save key (in production, use OS keychain instead)
-    fs::write(&key_file, &key)?;
-    
+
+    // 4. Store in keychain (preferred) or file (fallback)
+    if let Err(e) = save_key_to_keychain(&key) {
+        eprintln!("[synthesis-engine] Warning: Keychain unavailable ({}). Using file-based key storage. Consider installing a secret service (e.g., gnome-keyring) on Linux.", e);
+        save_key_to_file(app_handle, &key)?;
+    }
+
     Ok(key)
 }
 
@@ -152,17 +226,35 @@ fn decrypt(ciphertext: &[u8], key: &[u8; 32]) -> Result<String, StorageError> {
     })
 }
 
+// Sanitize entry_id to prevent path traversal
+fn sanitize_entry_id(entry_id: &str) -> Result<String, StorageError> {
+    // Remove any path separators and unsafe characters
+    let sanitized: String = entry_id
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_' || *c == '.')
+        .collect();
+    
+    if sanitized.is_empty() || sanitized.len() > 128 {
+        return Err(StorageError {
+            message: "Invalid entry ID".to_string(),
+        });
+    }
+    
+    Ok(sanitized)
+}
+
 // Save an encrypted journal entry
 pub fn save_encrypted_entry(
     app_handle: &tauri::AppHandle,
     entry_id: &str,
     content: &str,
 ) -> Result<(), StorageError> {
+    let sanitized_id = sanitize_entry_id(entry_id)?;
     let key = get_or_create_key(app_handle)?;
     let encrypted = encrypt(content, &key)?;
     
     let journal_dir = get_journal_dir(app_handle)?;
-    let entry_file = journal_dir.join(format!("{}.enc", entry_id));
+    let entry_file = journal_dir.join(format!("{}.enc", sanitized_id));
     
     fs::write(&entry_file, &encrypted)?;
     
@@ -174,10 +266,11 @@ pub fn load_encrypted_entry(
     app_handle: &tauri::AppHandle,
     entry_id: &str,
 ) -> Result<String, StorageError> {
+    let sanitized_id = sanitize_entry_id(entry_id)?;
     let key = get_or_create_key(app_handle)?;
     
     let journal_dir = get_journal_dir(app_handle)?;
-    let entry_file = journal_dir.join(format!("{}.enc", entry_id));
+    let entry_file = journal_dir.join(format!("{}.enc", sanitized_id));
     
     if !entry_file.exists() {
         return Err(StorageError {
@@ -220,8 +313,9 @@ pub fn delete_journal_entry(
     app_handle: &tauri::AppHandle,
     entry_id: &str,
 ) -> Result<(), StorageError> {
+    let sanitized_id = sanitize_entry_id(entry_id)?;
     let journal_dir = get_journal_dir(app_handle)?;
-    let entry_file = journal_dir.join(format!("{}.enc", entry_id));
+    let entry_file = journal_dir.join(format!("{}.enc", sanitized_id));
     
     if entry_file.exists() {
         fs::remove_file(&entry_file)?;

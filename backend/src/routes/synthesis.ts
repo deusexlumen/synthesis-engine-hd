@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import OpenAI from 'openai';
 import { asyncHandler } from '../middleware/errorHandler';
-import { authenticate, AuthenticatedRequest, requirePremium } from '../middleware/auth';
+import { authenticate, AuthenticatedRequest, requireTier } from '../middleware/auth';
+import { synthesisLimiter } from '../middleware/rateLimit';
+import { prisma } from '../lib/prisma';
 
-const router = Router();
-const prisma = new PrismaClient();
+const router = Router() as Router;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -33,9 +33,9 @@ const generateSynthesisSchema = z.object({
 });
 
 // Generate or retrieve cached synthesis
-router.post('/generate', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.post('/generate', authenticate, requireTier(['PREMIUM', 'PRO']), synthesisLimiter, asyncHandler(async (req: AuthenticatedRequest, res) => {
   const data = generateSynthesisSchema.parse(req.body);
-  const userId = req.user!.id;
+  const userId = req.user!.userId;
 
   // Check cache first
   const cached = await prisma.synthesisCache.findUnique({
@@ -118,7 +118,7 @@ router.post('/generate', authenticate, asyncHandler(async (req: AuthenticatedReq
 router.get('/cache/:contextKey', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
   const { contextKey } = req.params;
   const { section = 'overview' } = req.query;
-  const userId = req.user!.id;
+  const userId = req.user!.userId;
 
   const cached = await prisma.synthesisCache.findUnique({
     where: {
@@ -142,6 +142,15 @@ router.get('/cache/:contextKey', authenticate, asyncHandler(async (req: Authenti
 }));
 
 // Build synthesis prompt
+// Sanitize user-controlled values before interpolating into prompts
+function sanitizePromptValue(value: string): string {
+  // Strip newlines, control characters, and backticks to prevent prompt injection
+  return value
+    .replace(/[\r\n\x00-\x1F\x7F]/g, ' ')
+    .replace(/`/g, "'")
+    .trim();
+}
+
 function buildSynthesisPrompt(data: z.infer<typeof generateSynthesisSchema>): string {
   const { section, hdData, numerologyData, transitData } = data;
   
@@ -168,13 +177,13 @@ function buildSynthesisPrompt(data: z.infer<typeof generateSynthesisSchema>): st
 Kontext: Synthese von Human Design und Numerologie
 
 Human Design Profil:
-- Energie-Typ: ${hdData.energyType}
-- Autorität: ${hdData.authority}
-- Profil: ${hdData.profile}
-- Definierte Zentren: ${hdData.definedCenters.join(', ')}
+- Energie-Typ: ${sanitizePromptValue(hdData.energyType)}
+- Autorität: ${sanitizePromptValue(hdData.authority)}
+- Profil: ${sanitizePromptValue(hdData.profile)}
+- Definierte Zentren: ${hdData.definedCenters.map(sanitizePromptValue).join(', ')}
 
 Numerologie Profil:
-- Lebensweg: ${numerologyData.lifePathString}
+- Lebensweg: ${sanitizePromptValue(numerologyData.lifePathString)}
 - Schicksalszahl: ${numerologyData.destinyNumber}
 - ${numerologyData.hasMasterNumber ? 'Enthält Meisterzahl' : ''}
 

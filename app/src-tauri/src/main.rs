@@ -13,6 +13,7 @@ use numerology::{calculate_millman_profile, MillmanProfile, PersonData};
 use storage::{save_encrypted_entry, load_encrypted_entry, list_journal_entries, delete_journal_entry};
 use geocoding::{search_location, get_timezone, LocationResult, TimezoneResult};
 use transit::{TransitData, TransitComparison, calculate_daily_transit, compare_transit_to_natal, get_today_transit};
+use chrono::Datelike;
 use tauri::{Manager, State};
 use std::sync::Mutex;
 
@@ -45,13 +46,13 @@ fn calculate_human_design(
     timezone: f64,
     cache: State<CalculationCache>,
 ) -> Result<HumanDesignChart, String> {
-    // Create cache key
-    let cache_key = format!("{}-{}-{}-{}-{}-{:.4}-{:.4}", 
-        year, month, day, hour, minute, latitude, longitude);
+    // Create cache key (includes timezone to prevent collisions)
+    let cache_key = format!("{}-{}-{}-{}-{}-{:.4}-{:.4}-{:.2}", 
+        year, month, day, hour, minute, latitude, longitude, timezone);
     
     // Check cache first
     {
-        let hd_cache = cache.hd_cache.lock().unwrap();
+        let hd_cache = cache.hd_cache.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(cached) = hd_cache.get(&cache_key) {
             return Ok(cached.clone());
         }
@@ -68,7 +69,7 @@ fn calculate_human_design(
     
     // Store in cache
     {
-        let mut hd_cache = cache.hd_cache.lock().unwrap();
+        let mut hd_cache = cache.hd_cache.lock().unwrap_or_else(|e| e.into_inner());
         hd_cache.insert(cache_key, chart.clone());
     }
     
@@ -86,7 +87,7 @@ fn calculate_numerology(
     
     // Check cache first
     {
-        let millman_cache = cache.millman_cache.lock().unwrap();
+        let millman_cache = cache.millman_cache.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(cached) = millman_cache.get(&cache_key) {
             return Ok(cached.clone());
         }
@@ -103,7 +104,7 @@ fn calculate_numerology(
     
     // Store in cache
     {
-        let mut millman_cache = cache.millman_cache.lock().unwrap();
+        let mut millman_cache = cache.millman_cache.lock().unwrap_or_else(|e| e.into_inner());
         millman_cache.insert(cache_key, profile.clone());
     }
     
@@ -160,7 +161,7 @@ fn get_daily_transit(
     
     // Check cache first
     {
-        let transit_cache = cache.transit_cache.lock().unwrap();
+        let transit_cache = cache.transit_cache.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(cached) = transit_cache.get(&cache_key) {
             return Ok(cached.clone());
         }
@@ -172,7 +173,7 @@ fn get_daily_transit(
     
     // Store in cache
     {
-        let mut transit_cache = cache.transit_cache.lock().unwrap();
+        let mut transit_cache = cache.transit_cache.lock().unwrap_or_else(|e| e.into_inner());
         transit_cache.insert(cache_key, transit.clone());
     }
     
@@ -186,7 +187,7 @@ fn get_today_transit_command(cache: State<CalculationCache>) -> Result<TransitDa
     
     // Check cache first
     {
-        let transit_cache = cache.transit_cache.lock().unwrap();
+        let transit_cache = cache.transit_cache.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(cached) = transit_cache.get(&cache_key) {
             return Ok(cached.clone());
         }
@@ -198,7 +199,7 @@ fn get_today_transit_command(cache: State<CalculationCache>) -> Result<TransitDa
     
     // Store in cache
     {
-        let mut transit_cache = cache.transit_cache.lock().unwrap();
+        let mut transit_cache = cache.transit_cache.lock().unwrap_or_else(|e| e.into_inner());
         transit_cache.insert(cache_key, transit.clone());
     }
     

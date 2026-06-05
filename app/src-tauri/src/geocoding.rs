@@ -1,5 +1,11 @@
 use reqwest;
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
+
+fn http_client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| reqwest::Client::new())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocationResult {
@@ -43,8 +49,7 @@ pub async fn search_location(query: &str) -> Result<Vec<LocationResult>, Box<dyn
         urlencoding::encode(query)
     );
     
-    let client = reqwest::Client::new();
-    let response = client
+    let response = http_client()
         .get(&url)
         .timeout(std::time::Duration::from_secs(10))
         .send()
@@ -73,8 +78,7 @@ pub async fn get_timezone(latitude: f64, longitude: f64) -> Result<TimezoneResul
         latitude, longitude
     );
     
-    let client = reqwest::Client::new();
-    let response = client
+    let response = http_client()
         .get(&url)
         .timeout(std::time::Duration::from_secs(10))
         .send()

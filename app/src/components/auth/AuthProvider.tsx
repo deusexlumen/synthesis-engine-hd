@@ -79,8 +79,12 @@ export function useAuthEvents() {
   const subscribe = (callback: (event: string, data?: unknown) => void) => {
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'auth_event') {
-        const eventData = JSON.parse(e.newValue || '{}');
-        callback(eventData.type, eventData.payload);
+        try {
+          const eventData = JSON.parse(e.newValue || '{}');
+          callback(eventData.type, eventData.payload);
+        } catch {
+          // Ignore malformed storage events
+        }
       }
     };
 

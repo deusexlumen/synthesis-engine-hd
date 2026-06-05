@@ -1,15 +1,15 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { asyncHandler } from '../middleware/errorHandler';
-import { authenticate, AuthenticatedRequest, requirePremium } from '../middleware/auth';
+import { authenticate, AuthenticatedRequest, requireTier } from '../middleware/auth';
+import { coachingLimiter } from '../middleware/rateLimit';
+import { prisma } from '../lib/prisma';
 
-const router = Router();
-const prisma = new PrismaClient();
+const router: Router = Router();
 
 // Get daily coaching impulse
-router.get('/daily', authenticate, requirePremium, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const userId = req.user!.id;
+router.get('/daily', authenticate, requireTier(['PREMIUM', 'PRO']), coachingLimiter, asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const userId = req.user!.userId;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -46,7 +46,7 @@ router.get('/daily', authenticate, requirePremium, asyncHandler(async (req: Auth
 
 // Mark impulse as read
 router.post('/daily/read', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const userId = req.user!.id;
+  const userId = req.user!.userId;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -67,7 +67,7 @@ router.post('/daily/read', authenticate, asyncHandler(async (req: AuthenticatedR
 
 // Get coaching history
 router.get('/history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const userId = req.user!.id;
+  const userId = req.user!.userId;
   const { limit = '30', offset = '0' } = req.query;
 
   const history = await prisma.dailyCoaching.findMany({

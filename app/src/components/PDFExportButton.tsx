@@ -1,25 +1,25 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, FileText, BookOpen, X, Check, Loader2 } from 'lucide-react';
-import { exportElementToPDF, generateFullReport, quickExportChart } from '../services/pdfExport';
+import { exportElementToPDF, generateFullReport, quickExportChart, type JournalEntry } from '../services/pdfExport';
 
 interface PDFExportButtonProps {
   variant?: 'button' | 'icon' | 'menu';
   elementId?: string;
-  chartData?: any;
-  journalEntries?: any[];
+  chartData?: Record<string, unknown>;
+  journalEntries?: JournalEntry[];
   filename?: string;
   className?: string;
 }
 
-export const PDFExportButton: React.FC<PDFExportButtonProps> = ({
+export function PDFExportButton({
   variant = 'button',
   elementId,
   chartData,
   journalEntries,
   filename,
   className = ''
-}) => {
+}: PDFExportButtonProps): React.ReactElement {
   const [showMenu, setShowMenu] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [success, setSuccess] = useState(false);

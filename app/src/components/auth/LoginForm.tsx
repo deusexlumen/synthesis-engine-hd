@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
@@ -107,12 +107,12 @@ export function LoginForm() {
               Angemeldet bleiben
             </Label>
           </div>
-          <a
-            href="/forgot-password"
+          <Link
+            to="/forgot-password"
             className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
           >
             Passwort vergessen?
-          </a>
+          </Link>
         </div>
 
         {/* Submit Button */}

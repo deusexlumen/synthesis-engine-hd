@@ -79,7 +79,7 @@ export const useToastStore = create<ToastStore>((set, get) => ({
 
 export const toast = {
   success: (title: string, message?: string, duration?: number) =>
-    useToastStore.getState().addToast({ type: 'success', title, message, duration }),
+    useToastStore.getState().addToast({ type: 'success', title, message, duration: duration ?? 5000 }),
 
   error: (title: string, message?: string, duration?: number) =>
     useToastStore.getState().addToast({
@@ -90,10 +90,10 @@ export const toast = {
     }),
 
   warning: (title: string, message?: string, duration?: number) =>
-    useToastStore.getState().addToast({ type: 'warning', title, message, duration }),
+    useToastStore.getState().addToast({ type: 'warning', title, message, duration: duration ?? 5000 }),
 
   info: (title: string, message?: string, duration?: number) =>
-    useToastStore.getState().addToast({ type: 'info', title, message, duration }),
+    useToastStore.getState().addToast({ type: 'info', title, message, duration: duration ?? 5000 }),
 
   promise: <T,>(
     promise: Promise<T>,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
@@ -66,7 +66,7 @@ export function RegisterForm() {
     }
 
     try {
-      await register(formData.email, formData.password, formData.name);
+      await register(formData.email, formData.password, formData.name || undefined);
       toast.success('Konto erstellt!', 'Willkommen bei deinem Human Design Journey');
       navigate('/dashboard');
     } catch (err) {
@@ -221,13 +221,13 @@ export function RegisterForm() {
           />
           <Label htmlFor="terms" className="text-sm text-white/60 leading-relaxed cursor-pointer">
             Ich akzeptiere die{' '}
-            <a href="/terms" className="text-purple-400 hover:text-purple-300">
+            <Link to="/terms" className="text-purple-400 hover:text-purple-300">
               AGB
-            </a>{' '}
+            </Link>{' '}
             und{' '}
-            <a href="/privacy" className="text-purple-400 hover:text-purple-300">
+            <Link to="/privacy" className="text-purple-400 hover:text-purple-300">
               Datenschutzerklärung
-            </a>
+            </Link>
           </Label>
         </div>
 
@@ -264,12 +264,12 @@ export function RegisterForm() {
       {/* Login Link */}
       <p className="text-center text-white/60">
         Bereits ein Konto?{' '}
-        <a
-          href="/login"
+        <Link
+          to="/login"
           className="text-purple-400 hover:text-purple-300 font-medium transition-colors"
         >
           Hier anmelden
-        </a>
+        </Link>
       </p>
     </motion.div>
   );

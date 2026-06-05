@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/stores/appStore';
@@ -336,7 +336,7 @@ function SettingsPlaceholder() {
             <User className="w-8 h-8 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-medium">{user?.name || user?.email}</h3>
+            <h3 className="text-lg font-medium">{user?.email}</h3>
             <p className="text-white/50 text-sm">{user?.email}</p>
             <div className="flex items-center gap-2 mt-2">
               <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 text-xs font-medium">

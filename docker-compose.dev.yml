@@ -1,0 +1,65 @@
+version: '3.8'
+
+# Development Docker Compose for Synthesis Engine
+# Usage: docker compose -f docker-compose.dev.yml up -d
+#
+# Features: Hot-reload, volume mounts, dev dependencies
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: synthesis-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: synthesis_engine
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: synthesis-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_dev:/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: builder
+    container_name: synthesis-backend-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/synthesis_engine
+      DIRECT_URL: postgresql://postgres:postgres@postgres:5432/synthesis_engine
+      JWT_ACCESS_SECRET: dev-access-secret-min-32-chars-long
+      JWT_REFRESH_SECRET: dev-refresh-secret-min-32-chars-long
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/prisma:/app/prisma
+      - /app/node_modules
+    command: pnpm dev
+
+volumes:
+  postgres_data_dev:
+  redis_data_dev:

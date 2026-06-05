@@ -1,26 +1,41 @@
 import { Router } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { z } from 'zod';
+import { authenticate } from '../middleware/auth';
+import { transitRangeLimiter } from '../middleware/rateLimit';
 import { calculateDailyTransit, compareTransitToNatal } from '../services/ephemeris';
 import { prisma } from '../lib/prisma';
 
-const router = Router();
+const router: Router = Router();
+
+// Zod schemas for query validation
+const dailyTransitSchema = z.object({
+  year: z.coerce.number().int().min(1800).max(2400),
+  month: z.coerce.number().int().min(1).max(12),
+  day: z.coerce.number().int().min(1).max(31),
+});
+
+const compareSchema = z.object({
+  year: z.coerce.number().int().min(1800).max(2400).optional(),
+  month: z.coerce.number().int().min(1).max(12).optional(),
+  day: z.coerce.number().int().min(1).max(31).optional(),
+});
+
+const rangeSchema = z.object({
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+const moonPhasesSchema = z.object({
+  year: z.coerce.number().int().min(1800).max(2400),
+  month: z.coerce.number().int().min(1).max(12),
+});
 
 // Get daily transit data
 router.get('/daily', async (req, res, next) => {
   try {
-    const { year, month, day } = req.query;
-    
-    if (!year || !month || !day) {
-      return res.status(400).json({ 
-        error: 'Missing required parameters: year, month, day' 
-      });
-    }
+    const { year, month, day } = dailyTransitSchema.parse(req.query);
 
-    const transitData = await calculateDailyTransit(
-      parseInt(year as string),
-      parseInt(month as string),
-      parseInt(day as string)
-    );
+    const transitData = await calculateDailyTransit(year, month, day);
 
     res.json({
       success: true,
@@ -51,33 +66,33 @@ router.get('/today', async (req, res, next) => {
 });
 
 // Get transit comparison with user's natal chart
-router.get('/compare', authenticateToken, async (req, res, next) => {
+router.get('/compare', authenticate, async (req, res, next) => {
   try {
-    const { year, month, day } = req.query;
-    const userId = req.user?.id;
+    const query = compareSchema.parse(req.query);
+    const userId = req.user?.userId;
 
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
     // Get user's natal chart
-    const userProfile = await prisma.profile.findFirst({
+    const userProfile = await prisma.humanDesignProfile.findFirst({
       where: { userId },
-      include: { humanDesign: true },
+      include: { gates: true },
     });
 
-    if (!userProfile?.humanDesign) {
+    if (!userProfile?.gates?.length) {
       return res.status(404).json({ 
         error: 'Natal chart not found. Please complete your profile first.' 
       });
     }
 
-    const natalGates = (userProfile.humanDesign as any).gates.map((g: any) => g.number);
+    const natalGates = userProfile.gates.map((g: { gateNumber: number }) => g.gateNumber);
 
     const comparison = await compareTransitToNatal(
-      parseInt(year as string) || new Date().getFullYear(),
-      parseInt(month as string) || new Date().getMonth() + 1,
-      parseInt(day as string) || new Date().getDate(),
+      query.year || new Date().getFullYear(),
+      query.month || new Date().getMonth() + 1,
+      query.day || new Date().getDate(),
       natalGates
     );
 
@@ -91,30 +106,18 @@ router.get('/compare', authenticateToken, async (req, res, next) => {
 });
 
 // Get transit range
-router.get('/range', async (req, res, next) => {
+router.get('/range', authenticate, transitRangeLimiter, async (req, res, next) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate } = rangeSchema.parse(req.query);
 
-    if (!startDate || !endDate) {
-      return res.status(400).json({ 
-        error: 'Missing required parameters: startDate, endDate' 
-      });
-    }
-
-    const start = new Date(startDate as string);
-    const end = new Date(endDate as string);
-
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return res.status(400).json({ 
-        error: 'Invalid date format. Use ISO 8601 format (YYYY-MM-DD)' 
-      });
-    }
+    const start = new Date(startDate);
+    const end = new Date(endDate);
 
     const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     
-    if (daysDiff > 30) {
+    if (daysDiff > 30 || daysDiff < 0) {
       return res.status(400).json({ 
-        error: 'Date range too large. Maximum 30 days allowed.' 
+        error: 'Date range too large or invalid. Maximum 30 days allowed.' 
       });
     }
 
@@ -141,27 +144,19 @@ router.get('/range', async (req, res, next) => {
 });
 
 // Get moon phases for a month
-router.get('/moon-phases', async (req, res, next) => {
+router.get('/moon-phases', authenticate, async (req, res, next) => {
   try {
-    const { year, month } = req.query;
+    const { year, month } = moonPhasesSchema.parse(req.query);
 
-    if (!year || !month) {
-      return res.status(400).json({ 
-        error: 'Missing required parameters: year, month' 
-      });
-    }
-
-    const y = parseInt(year as string);
-    const m = parseInt(month as string);
-    const daysInMonth = new Date(y, m, 0).getDate();
+    const daysInMonth = new Date(year, month, 0).getDate();
 
     const moonPhases = [];
     for (let day = 1; day <= daysInMonth; day++) {
-      const transit = await calculateDailyTransit(y, m, day);
+      const transit = await calculateDailyTransit(year, month, day);
       moonPhases.push({
-        date: `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+        date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
         phase: transit.moon_phase,
-        moonGate: transit.planets.find(p => p.name === 'Mond')?.gate,
+        moonGate: transit.planets.find((p: { name: string; gate: number }) => p.name === 'Mond')?.gate,
       });
     }
 

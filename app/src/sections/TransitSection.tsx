@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { TransitDisplay } from '../components/TransitDisplay';
-import { invoke } from '@tauri-apps/api/core';
+import { invokeSafe, isTauri } from '@/lib/tauri';
 import { Orbit, Calendar, Sparkles } from 'lucide-react';
 
 interface TransitSectionProps {
@@ -27,7 +27,7 @@ interface HumanDesignChart {
   }>;
 }
 
-export const TransitSection: React.FC<TransitSectionProps> = ({ className = '' }) => {
+export function TransitSection({ className = '' }: TransitSectionProps): React.ReactElement {
   const [natalGates, setNatalGates] = useState<number[]>([]);
   const [hasProfile, setHasProfile] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -45,7 +45,7 @@ export const TransitSection: React.FC<TransitSectionProps> = ({ className = '' }
       if (stored) {
         const profile = JSON.parse(stored);
         if (profile.humanDesign?.gates) {
-          const gates = profile.humanDesign.gates.map((g: any) => g.number);
+          const gates = profile.humanDesign.gates.map((g: { number: number }) => g.number);
           setNatalGates(gates);
           setHasProfile(true);
           setLoading(false);
@@ -55,9 +55,9 @@ export const TransitSection: React.FC<TransitSectionProps> = ({ className = '' }
       
       // If no stored profile, check if we can calculate from birth data
       const birthData = localStorage.getItem('synthesis_birth_data');
-      if (birthData) {
+      if (birthData && isTauri()) {
         const data = JSON.parse(birthData);
-        const chart = await invoke<HumanDesignChart>('calculate_human_design', {
+        const chart = await invokeSafe<HumanDesignChart>('calculate_human_design', {
           year: data.year,
           month: data.month,
           day: data.day,
@@ -67,16 +67,18 @@ export const TransitSection: React.FC<TransitSectionProps> = ({ className = '' }
           longitude: data.longitude,
           timezone: data.timezone,
         });
-        
-        const gates = chart.gates.map(g => g.number);
-        setNatalGates(gates);
-        setHasProfile(true);
-        
-        // Store the calculated profile
-        localStorage.setItem('synthesis_profile', JSON.stringify({
-          humanDesign: chart,
-          birthData: data,
-        }));
+
+        if (chart) {
+          const gates = chart.gates.map(g => g.number);
+          setNatalGates(gates);
+          setHasProfile(true);
+
+          // Store the calculated profile
+          localStorage.setItem('synthesis_profile', JSON.stringify({
+            humanDesign: chart,
+            birthData: data,
+          }));
+        }
       }
     } catch (error) {
       console.error('Error loading profile:', error);

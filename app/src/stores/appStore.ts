@@ -9,6 +9,8 @@ import { immer } from 'zustand/middleware/immer';
 import type {
   AppState,
   UserData,
+  UserProfile,
+  AppSettings,
   HumanDesignChart,
   MillmanProfile,
   AppStep,
@@ -23,6 +25,8 @@ interface AppActions {
   setUserData: (data: UserData | null) => void;
   setHDChart: (chart: HumanDesignChart | null) => void;
   setMillmanProfile: (profile: MillmanProfile | null) => void;
+  setProfile: (profile: UserProfile | null) => void;
+  setSettings: (settings: AppSettings | null) => void;
 
   // UI state
   setLoading: (loading: boolean) => void;
@@ -47,6 +51,8 @@ const initialState: AppState = {
   userData: null,
   hdChart: null,
   millmanProfile: null,
+  profile: null,
+  settings: null,
   isLoading: false,
   currentStep: 'onboarding',
 };
@@ -76,6 +82,16 @@ export const useAppStore = create<AppStore>()(
         setMillmanProfile: (profile) =>
           set((state) => {
             state.millmanProfile = profile;
+          }),
+
+        setProfile: (profile) =>
+          set((state) => {
+            state.profile = profile;
+          }),
+
+        setSettings: (settings) =>
+          set((state) => {
+            state.settings = settings;
           }),
 
         setLoading: (loading) =>
@@ -109,6 +125,8 @@ export const useAppStore = create<AppStore>()(
           userData: state.userData,
           hdChart: state.hdChart,
           millmanProfile: state.millmanProfile,
+          profile: state.profile,
+          settings: state.settings,
         }),
         version: 1, // Migration support
         migrate: (persistedState: unknown, version: number) => {

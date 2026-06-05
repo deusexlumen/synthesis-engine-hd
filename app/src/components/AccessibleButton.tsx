@@ -56,8 +56,9 @@ export const AccessibleButton = forwardRef<HTMLButtonElement, AccessibleButtonPr
       onClick?.(e);
     };
 
+    const MotionButton = motion.button as any;
     return (
-      <motion.button
+      <MotionButton
         ref={ref}
         onClick={handleClick}
         disabled={disabled || isLoading}
@@ -109,7 +110,7 @@ export const AccessibleButton = forwardRef<HTMLButtonElement, AccessibleButtonPr
             {rightIcon}
           </>
         )}
-      </motion.button>
+      </MotionButton>
     );
   }
 );

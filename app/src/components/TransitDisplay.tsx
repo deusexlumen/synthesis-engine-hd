@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invokeSafe, isTauri } from '@/lib/tauri';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sun, Moon, Star, ArrowUpRight, ArrowDownRight, 
@@ -107,24 +107,36 @@ export const TransitDisplay: React.FC<TransitDisplayProps> = ({
     try {
       setLoading(true);
       setError(null);
-      
-      const data = await invoke<TransitData>('get_daily_transit', {
+
+      if (!isTauri()) {
+        setError('Transit-Daten sind in der Web-Version nicht verfügbar. Bitte verwende die Desktop-App.');
+        setLoading(false);
+        return;
+      }
+
+      const data = await invokeSafe<TransitData>('get_daily_transit', {
         year: date.getFullYear(),
         month: date.getMonth() + 1,
         day: date.getDate(),
       });
-      
+
+      if (!data) {
+        setError('Keine Transit-Daten verfügbar');
+        setLoading(false);
+        return;
+      }
+
       setTransitData(data);
-      
+
       // If natal gates provided, fetch comparison
       if (natalGates.length > 0) {
-        const comp = await invoke<TransitComparison>('compare_transit_to_natal_command', {
+        const comp = await invokeSafe<TransitComparison>('compare_transit_to_natal_command', {
           year: date.getFullYear(),
           month: date.getMonth() + 1,
           day: date.getDate(),
           natalGates,
         });
-        setComparison(comp);
+        if (comp) setComparison(comp);
       }
     } catch (err) {
       console.error('Transit fetch error:', err);

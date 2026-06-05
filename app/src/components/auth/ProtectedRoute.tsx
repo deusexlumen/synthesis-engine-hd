@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { Spinner } from '@/components/ui/spinner';
@@ -19,24 +19,12 @@ export function ProtectedRoute({
     isAuthenticated, 
     user, 
     isLoading, 
-    checkAuth, 
     hasRole, 
     hasTier 
   } = useAuthStore();
-  
-  const [isChecking, setIsChecking] = useState(true);
-
-  useEffect(() => {
-    const verify = async () => {
-      await checkAuth();
-      setIsChecking(false);
-    };
-    
-    verify();
-  }, [checkAuth]);
 
   // Show loading spinner while checking auth
-  if (isLoading || isChecking) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[#020202] flex items-center justify-center">
         <div className="text-center">
@@ -68,12 +56,12 @@ export function ProtectedRoute({
           <p className="text-white/60 mb-6">
             Du hast nicht die nötigen Berechtigungen, um auf diese Seite zuzugreifen.
           </p>
-          <button
-            onClick={() => window.history.back()}
+          <Link
+            to="/"
             className="text-purple-400 hover:text-purple-300"
           >
             ← Zurück
-          </button>
+          </Link>
         </div>
       </div>
     );
@@ -96,12 +84,12 @@ export function ProtectedRoute({
             Diese Funktion ist in deinem aktuellen Paket nicht verfügbar.
             Upgrade auf <strong className="text-white">{requiredTier}</strong> für Zugriff.
           </p>
-          <a
-            href="/pricing"
+          <Link
+            to="/pricing"
             className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg hover:from-purple-600 hover:to-indigo-600 transition-colors"
           >
             Upgrade jetzt
-          </a>
+          </Link>
         </div>
       </div>
     );

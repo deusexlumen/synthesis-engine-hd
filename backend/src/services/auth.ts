@@ -13,9 +13,26 @@ import type { Request } from 'express';
 // CONFIGURATION
 // ============================================================================
 
+// Validate required secrets at startup
+const accessTokenSecret = process.env.JWT_SECRET;
+const refreshTokenSecret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+
+if (!accessTokenSecret) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+if (!refreshTokenSecret) {
+  throw new Error('JWT_REFRESH_SECRET or JWT_SECRET environment variable is required');
+}
+if (accessTokenSecret.length < 32) {
+  throw new Error('JWT_SECRET must be at least 32 characters long');
+}
+if (refreshTokenSecret.length < 32) {
+  throw new Error('JWT_REFRESH_SECRET must be at least 32 characters long');
+}
+
 const JWT_CONFIG = {
-  accessTokenSecret: process.env.JWT_SECRET || 'your-access-secret-change-in-production',
-  refreshTokenSecret: process.env.JWT_SECRET || 'your-refresh-secret-change-in-production',
+  accessTokenSecret,
+  refreshTokenSecret,
   accessTokenExpiry: '15m' as const,
   refreshTokenExpiry: '7d' as const,
 };
@@ -42,6 +59,7 @@ export interface TokenPayload {
 export interface RegisterInput {
   email: string;
   password: string;
+  name?: string;
 }
 
 export interface LoginInput {
@@ -123,7 +141,7 @@ export const authService = {
     }
 
     // Create user with transaction
-    const user = await prisma.$transaction(async (tx) => {
+    const user = await prisma.$transaction(async (tx: any) => {
       // Create user
       const newUser = await tx.user.create({
         data: {
@@ -343,7 +361,7 @@ export const authService = {
    * Logout user
    */
   async logout(userId: string, refreshToken?: string, req?: Request): Promise<void> {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // Revoke refresh token if provided
       if (refreshToken) {
         await tx.refreshToken.updateMany({

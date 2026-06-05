@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/stores/appStore';
-import { invoke } from '@tauri-apps/api/core';
+import { invokeSafe, isTauri } from '@/lib/tauri';
 
 const phases = [
   { id: 'void', text: '', duration: 400 },
@@ -21,12 +21,44 @@ export function ProcessingAnimation() {
 
     const runCalculations = async () => {
       try {
-        // Parse birth data
-        const [day, month, year] = userData.birthDate.split('.').map(Number);
+        if (!isTauri()) {
+          console.warn('[ProcessingAnimation] Local calculations require Tauri desktop build. In web mode, calculations should be performed via backend API.');
+          // In web mode, skip to results if cached data exists
+          const cached = localStorage.getItem('synthesis_profile');
+          if (cached) {
+            const data = JSON.parse(cached);
+            if (data.humanDesign) setHDChart(data.humanDesign);
+            if (data.millman) setMillmanProfile(data.millman);
+          }
+          setShowReveal(true);
+          setTimeout(() => setStep('results'), 1500);
+          return;
+        }
+
+        // Parse birth data (YYYY-MM-DD format from OnboardingFlow)
+        const [year, month, day] = userData.birthDate.split('-').map(Number);
         const [hour, minute] = userData.birthTime.split(':').map(Number);
 
-        // Calculate Human Design
-        const hdResult = await invoke<HumanDesignChart>('calculate_human_design', {
+        // Convert IANA timezone to numeric offset for Tauri
+        const getTzOffset = (ianaTz: string, dateStr: string): number => {
+          try {
+            const d = new Date(dateStr + 'T12:00:00');
+            const fmt = new Intl.DateTimeFormat('en-US', {
+              timeZone: ianaTz,
+              timeZoneName: 'shortOffset',
+            });
+            const parts = fmt.formatToParts(d);
+            const tzPart = parts.find((p) => p.type === 'timeZoneName')?.value || '';
+            const match = tzPart.match(/GMT([+-]\d+)/);
+            return match ? parseInt(match[1], 10) : 1;
+          } catch {
+            return 1; // Default to CET
+          }
+        };
+        const tzOffset = getTzOffset(userData.timezone, userData.birthDate);
+
+        // Calculate Human Design via Tauri (desktop only)
+        const hdResult = await invokeSafe<HumanDesignChart>('calculate_human_design', {
           year,
           month,
           day,
@@ -34,27 +66,40 @@ export function ProcessingAnimation() {
           minute,
           latitude: userData.latitude,
           longitude: userData.longitude,
-          timezone: userData.timezone,
+          timezone: tzOffset,
         });
 
-        // Calculate Numerology
-        const millmanResult = await invoke<MillmanProfile>('calculate_numerology', {
+        // Calculate Numerology via Tauri (desktop only)
+        const millmanResult = await invokeSafe<MillmanProfile>('calculate_numerology', {
           birthDate: userData.birthDate,
           fullName: userData.fullName,
         });
 
-        setHDChart(hdResult);
+        if (!hdResult || !millmanResult) {
+          throw new Error(
+            isTauri()
+              ? 'Tauri calculation returned empty result'
+              : 'Desktop app required for full calculations. Please download the desktop version.'
+          );
+        }
+
+        setHDChart(hdResult as any);
         setMillmanProfile(millmanResult);
 
         // Trigger reveal
         setShowReveal(true);
-        
+
         // Move to results after reveal animation
         setTimeout(() => {
           setStep('results');
         }, 1500);
       } catch (error) {
         console.error('Calculation error:', error);
+        // If not in Tauri, show a message and redirect back
+        if (!isTauri()) {
+          setShowReveal(true);
+          setTimeout(() => setStep('results'), 1500);
+        }
       }
     };
 

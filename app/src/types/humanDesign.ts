@@ -208,7 +208,7 @@ export interface UserData {
   birthPlace: string;
   latitude: number;
   longitude: number;
-  timezone: number;
+  timezone: string;
 }
 
 // ============================================================================
@@ -217,10 +217,31 @@ export interface UserData {
 
 export type AppStep = 'onboarding' | 'processing' | 'results';
 
+export interface UserProfile {
+  fullName: string;
+  email: string;
+  birthDate: string;
+  birthTime: string;
+  birthLocation: string;
+}
+
+export interface AppSettings {
+  theme: 'light' | 'dark' | 'system';
+  language: string;
+  notifications: boolean;
+  dailyReminder: boolean;
+  reminderTime: string;
+  transitAlerts: boolean;
+  hapticFeedback: boolean;
+  analytics: boolean;
+}
+
 export interface AppState {
   userData: UserData | null;
   hdChart: HumanDesignChart | null;
   millmanProfile: MillmanProfile | null;
+  profile: UserProfile | null;
+  settings: AppSettings | null;
   isLoading: boolean;
   currentStep: AppStep;
 }

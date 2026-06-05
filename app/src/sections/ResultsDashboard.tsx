@@ -22,6 +22,7 @@ import { BodyGraphResponsive } from '@/components/BodyGraphResponsive';
 import { ResultsDashboardSkeleton, StatsCardSkeleton } from '@/components/Skeleton';
 import { NumerologyChart } from '@/components/NumerologyChart';
 import { AICoaching } from '@/components/AICoaching';
+import type { Center } from '@/types/humanDesign';
 
 const springConfig = { stiffness: 400, damping: 30 };
 
@@ -344,7 +345,7 @@ export function ResultsDashboard() {
                             { name: 'SOLAR_PLEXUS', label: 'Solarplexus', desc: 'Emotionen' },
                             { name: 'ROOT', label: 'Wurzel', desc: 'Adrenalin' },
                           ].map((center) => {
-                            const isDefined = hdChart.definedCenters.includes(center.name);
+                            const isDefined = hdChart.definedCenters.includes(center.name as Center);
                             return (
                               <div
                                 key={center.name}

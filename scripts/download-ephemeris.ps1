@@ -38,7 +38,8 @@
 param(
     [string]$TargetPath = "..\app\src-tauri\ephemeris",
     [ValidateSet("1800-2400", "3000", "all")]
-    [string]$TimeRange = "1800-2400"
+    [string]$TimeRange = "1800-2400",
+    [switch]$Verify
 )
 
 # GitHub Raw URL base
@@ -104,6 +105,32 @@ foreach ($File in $Files) {
         $FileSizeKB = [math]::Round($FileSize / 1KB, 2)
         
         Write-Host "  ✓ Success ($FileSize KB)" -ForegroundColor Green
+        
+        # Verify checksum if requested
+        if ($Verify) {
+            $ChecksumFile = Join-Path $PSScriptRoot "ephemeris-checksums.sha256"
+            if (Test-Path $ChecksumFile) {
+                $ExpectedLine = Get-Content $ChecksumFile | Where-Object { $_ -match "$([regex]::Escape($File.Name))$" }
+                if ($ExpectedLine) {
+                    $ExpectedHash = ($ExpectedLine -split '\s+')[0]
+                    $ActualHash = (Get-FileHash $OutputPath -Algorithm SHA256).Hash
+                    if ($ExpectedHash -eq $ActualHash) {
+                        Write-Host "  ✓ Checksum verified" -ForegroundColor Green
+                    } else {
+                        Write-Host "  ✗ Checksum mismatch! File may be corrupted." -ForegroundColor Red
+                        Write-Host "    Expected: $ExpectedHash" -ForegroundColor Gray
+                        Write-Host "    Actual:   $ActualHash" -ForegroundColor Gray
+                        $FailCount++
+                        continue
+                    }
+                } else {
+                    Write-Host "  ⚠ No checksum found for $($File.Name)" -ForegroundColor Yellow
+                }
+            } else {
+                Write-Host "  ⚠ Checksum file not found: $ChecksumFile" -ForegroundColor Yellow
+            }
+        }
+        
         $SuccessCount++
     }
     catch {

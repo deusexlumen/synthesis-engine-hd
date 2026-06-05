@@ -35,6 +35,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  features: Record<string, boolean | number>;
   
   // Actions
   setUser: (user: User | null) => void;
@@ -44,10 +45,16 @@ interface AuthState {
   
   // Auth actions
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<boolean>;
+  checkAuth: () => Promise<void>;
   clearError: () => void;
+  
+  // RBAC helpers
+  hasRole: (role: string | string[]) => boolean;
+  hasTier: (tier: string) => boolean;
+  hasPermission: (permission: string) => boolean;
 }
 
 // ============================================================================
@@ -70,6 +77,7 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: false,
         isLoading: false,
         error: null,
+        features: {},
 
         // Setters
         setUser: (user) =>
@@ -141,7 +149,7 @@ export const useAuthStore = create<AuthState>()(
         },
 
         // Register
-        register: async (email, password) => {
+        register: async (email, password, name) => {
           set((state) => {
             state.isLoading = true;
             state.error = null;
@@ -152,7 +160,7 @@ export const useAuthStore = create<AuthState>()(
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
-              body: JSON.stringify({ email, password }),
+              body: JSON.stringify({ email, password, name }),
             });
 
             const data = await response.json();
@@ -236,13 +244,104 @@ export const useAuthStore = create<AuthState>()(
             return false;
           }
         },
+
+        // Check auth status on app load
+        checkAuth: async () => {
+          set((state) => {
+            state.isLoading = true;
+          });
+
+          try {
+            const response = await fetch(`${API_BASE}/api/auth/me`, {
+              method: 'GET',
+              credentials: 'include',
+              headers: {
+                Authorization: `Bearer ${get().tokens?.accessToken || ''}`,
+              },
+            });
+
+            if (!response.ok) {
+              // Try to refresh token
+              const refreshed = await get().refreshToken();
+              if (!refreshed) {
+                set((state) => {
+                  state.isLoading = false;
+                });
+                return;
+              }
+              // Retry /me with new token
+              const retryResponse = await fetch(`${API_BASE}/api/auth/me`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                  Authorization: `Bearer ${get().tokens?.accessToken || ''}`,
+                },
+              });
+              if (!retryResponse.ok) {
+                set((state) => {
+                  state.isLoading = false;
+                });
+                return;
+              }
+              const retryData = await retryResponse.json();
+              set((state) => {
+                state.user = retryData.data.user;
+                state.isAuthenticated = true;
+                state.isLoading = false;
+              });
+              return;
+            }
+
+            const data = await response.json();
+            set((state) => {
+              state.user = data.data.user;
+              state.isAuthenticated = true;
+              state.isLoading = false;
+            });
+          } catch (error) {
+            console.error('Auth check failed:', error);
+            set((state) => {
+              state.isLoading = false;
+              state.isAuthenticated = false;
+            });
+          }
+        },
+
+        // RBAC helpers
+        hasRole: (role) => {
+          const user = get().user;
+          if (!user) return false;
+          if (Array.isArray(role)) {
+            return role.some((r) => user.roles.includes(r));
+          }
+          return user.roles.includes(role);
+        },
+
+        hasTier: (tier) => {
+          const user = get().user;
+          if (!user) return false;
+          const tiers = ['FREE', 'BASIC', 'PREMIUM', 'PRO'];
+          const userTierIndex = tiers.indexOf(user.subscription.tier);
+          const requiredTierIndex = tiers.indexOf(tier as 'FREE' | 'BASIC' | 'PREMIUM' | 'PRO');
+          return userTierIndex >= requiredTierIndex;
+        },
+
+        hasPermission: (permission) => {
+          // Simplified: check if user has the permission
+          // In a full implementation, this would check against a permissions list
+          const user = get().user;
+          if (!user) return false;
+          if (user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN')) return true;
+          return false;
+        },
       }),
       {
         name: 'auth-storage',
         storage: createJSONStorage(() => localStorage),
         partialize: (state) => ({
+          // NEVER persist tokens or API keys to localStorage (XSS risk)
+          // Only persist user profile data and auth status
           user: state.user,
-          tokens: state.tokens,
           isAuthenticated: state.isAuthenticated,
         }),
       }

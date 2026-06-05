@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invokeSafe, isTauri } from '@/lib/tauri';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Plus, Calendar, Tag, Lock, Unlock,
   ChevronRight, Filter, BookOpen, Sparkles
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface JournalEntry {
   id: string;
@@ -54,34 +62,53 @@ export const JournalList: React.FC<JournalListProps> = ({
   const loadEntries = async () => {
     try {
       setLoading(true);
-      
+
+      if (!isTauri()) {
+        // Web fallback: load from localStorage
+        const stored = localStorage.getItem('synthesis_journal_entries');
+        if (stored) {
+          const parsed: JournalEntry[] = JSON.parse(stored);
+          setEntries(parsed);
+          const tagsSet = new Set<string>();
+          parsed.forEach(e => e.tags.forEach(tag => tagsSet.add(tag)));
+          setAllTags(Array.from(tagsSet).sort());
+        }
+        setLoading(false);
+        return;
+      }
+
       // Get list of entry IDs
-      const entryIds = await invoke<string[]>('list_journal_entries_command');
-      
+      const entryIds = await invokeSafe<string[]>('list_journal_entries_command', undefined, []);
+      if (!entryIds) {
+        setLoading(false);
+        return;
+      }
+
       // Load each entry
       const loadedEntries: JournalEntry[] = [];
       const tagsSet = new Set<string>();
-      
+
       for (const id of entryIds) {
         try {
-          const encrypted = await invoke<string>('load_journal_entry', {
+          const encrypted = await invokeSafe<string>('load_journal_entry', {
             entryId: id,
           });
-          
-          const entry: JournalEntry = JSON.parse(encrypted);
-          loadedEntries.push(entry);
-          
-          entry.tags.forEach(tag => tagsSet.add(tag));
+
+          if (encrypted) {
+            const entry: JournalEntry = JSON.parse(encrypted); // Rust command returns decrypted plaintext JSON
+            loadedEntries.push(entry);
+            entry.tags.forEach(tag => tagsSet.add(tag));
+          }
         } catch (error) {
           console.error(`Failed to load entry ${id}:`, error);
         }
       }
-      
+
       // Sort by date (newest first)
-      loadedEntries.sort((a, b) => 
+      loadedEntries.sort((a, b) =>
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
-      
+
       setEntries(loadedEntries);
       setAllTags(Array.from(tagsSet).sort());
     } catch (error) {
@@ -163,13 +190,13 @@ export const JournalList: React.FC<JournalListProps> = ({
               </p>
             </div>
           </div>
-          <button
+          <Button
             onClick={onCreateEntry}
-            className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 rounded-lg transition-colors"
+            className="flex items-center gap-2 bg-violet-500 hover:bg-violet-600"
           >
             <Plus className="w-4 h-4" />
-            <span>Neuer Eintrag</span>
-          </button>
+            Neuer Eintrag
+          </Button>
         </div>
 
         {/* Search */}
@@ -187,19 +214,20 @@ export const JournalList: React.FC<JournalListProps> = ({
         {/* Filters */}
         <div className="flex items-center gap-2 mt-3">
           <Filter className="w-4 h-4 text-slate-400" />
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'date' | 'title')}
-            className="bg-white/5 text-sm rounded-lg px-3 py-1.5 outline-none"
-          >
-            <option value="date">Nach Datum</option>
-            <option value="title">Nach Titel</option>
-          </select>
-          
+          <Select value={sortBy} onValueChange={(val) => setSortBy(val as 'date' | 'title')}>
+            <SelectTrigger className="w-auto h-8 bg-white/5 border-white/10 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date">Nach Datum</SelectItem>
+              <SelectItem value="title">Nach Titel</SelectItem>
+            </SelectContent>
+          </Select>
+
           {selectedTag && (
             <span className="flex items-center gap-1 px-2 py-1 bg-violet-500/20 text-violet-400 text-xs rounded-full">
               {selectedTag}
-              <button onClick={() => setSelectedTag(null)}>×</button>
+              <Button variant="ghost" size="icon" className="h-4 w-4 p-0 text-violet-400 hover:text-white hover:bg-transparent" onClick={() => setSelectedTag(null)}>×</Button>
             </span>
           )}
         </div>
@@ -209,17 +237,19 @@ export const JournalList: React.FC<JournalListProps> = ({
           <div className="flex items-center gap-2 mt-3 flex-wrap">
             <Tag className="w-3 h-3 text-slate-500" />
             {allTags.slice(0, 8).map((tag) => (
-              <button
+              <Button
                 key={tag}
+                variant="ghost"
+                size="sm"
                 onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
-                className={`px-2 py-0.5 text-xs rounded-full transition-colors ${
+                className={`px-2 py-0.5 h-auto text-xs rounded-full transition-colors ${
                   selectedTag === tag
-                    ? 'bg-violet-500 text-white'
-                    : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                    ? 'bg-violet-500 text-white hover:bg-violet-500 hover:text-white'
+                    : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-300'
                 }`}
               >
                 {tag}
-              </button>
+              </Button>
             ))}
           </div>
         )}
@@ -241,12 +271,13 @@ export const JournalList: React.FC<JournalListProps> = ({
                 : 'Beginne deine Reise mit deinem ersten Eintrag'}
             </p>
             {!searchQuery && !selectedTag && (
-              <button
+              <Button
+                variant="outline"
                 onClick={onCreateEntry}
-                className="mt-4 px-4 py-2 bg-violet-500/20 text-violet-400 rounded-lg hover:bg-violet-500/30 transition-colors"
+                className="mt-4 bg-violet-500/20 text-violet-400 border-violet-500/30 hover:bg-violet-500/30 hover:text-violet-300"
               >
                 Ersten Eintrag erstellen
-              </button>
+              </Button>
             )}
           </div>
         ) : (

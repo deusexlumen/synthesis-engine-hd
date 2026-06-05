@@ -4,11 +4,10 @@
 //! Es verwendet die Swiss Ephemeris Bibliothek für präzise Planetenpositionen.
 
 use serde::{Deserialize, Serialize};
-use chrono::{NaiveDate, Utc};
+use chrono::{NaiveDate, Utc, Datelike};
 use crate::ephemeris::{
-    self, Planet, julian_day, Calendar, calculate_planet, longitude_to_hd_gate, calculate_hd_details
+    self, Planet, julian_day, Calendar, calculate_planet, longitude_to_hd_gate, calculate_hd_details, DEFAULT_CALC_FLAG
 };
-use libswe_sys as swe;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransitData {
@@ -61,7 +60,8 @@ const MANDALA_GATES: [i32; 64] = [
 
 /// Initialisiert die Ephemeris für Transit-Berechnungen
 fn init() -> Result<(), Box<dyn std::error::Error>> {
-    ephemeris::init_ephemeris(None)?;
+    let ephe_path = ephemeris::find_ephemeris_path();
+    ephemeris::init_ephemeris(ephe_path.as_deref())?;
     Ok(())
 }
 
@@ -182,7 +182,7 @@ pub fn calculate_daily_transit(year: i32, month: u32, day: u32) -> Result<Transi
     
     // Mittag des Tages (12:00 UT) für Berechnung
     let jd = julian_day(year, month as i32, day as i32, 12, 0, 0.0, Calendar::Gregorian);
-    let iflag = swe::SE_EQUATORIAL as i32;
+    let iflag = DEFAULT_CALC_FLAG;
     
     // Alle Planeten berechnen
     let planets_data = vec![

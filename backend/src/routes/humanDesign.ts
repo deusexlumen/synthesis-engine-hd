@@ -1,13 +1,12 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { asyncHandler } from '../middleware/errorHandler';
-import { authenticate } from '../middleware/auth';
+import { authenticate, requireRole } from '../middleware/auth';
 import { Request } from 'express';
+import { prisma } from '../lib/prisma';
 import * as ephemeris from '../services/ephemeris';
 
-const router = Router();
-const prisma = new PrismaClient();
+const router: Router = Router();
 
 // ============================================================================
 // VALIDATION SCHEMAS
@@ -25,8 +24,8 @@ const calculateSchema = z.object({
 });
 
 const saveHDSchema = z.object({
-  energyType: z.string(),
-  authority: z.string(),
+  energyType: z.enum(['MANIFESTOR', 'GENERATOR', 'MANIFESTING_GENERATOR', 'PROJECTOR', 'REFLECTOR']),
+  authority: z.enum(['EMOTIONAL', 'SACRAL', 'SPLENIC', 'EGO', 'SELF_PROJECTED', 'MENTAL', 'LUNAR']),
   profileLine1: z.number().int().min(1).max(6),
   profileLine2: z.number().int().min(1).max(6),
   incarnationCross: z.string(),
@@ -75,7 +74,7 @@ function gateToCenter(gate: number): string {
   if ([47, 24, 4, 11].includes(gate)) return 'AJNA';
   if ([62, 23, 56, 35, 12, 45, 33, 20].includes(gate)) return 'THROAT';
   if ([1, 2, 7, 10, 13, 15, 25, 46].includes(gate)) return 'G_CENTER';
-  if ([21, 40, 51, 26, 44].includes(gate)) return 'HEART';
+  if ([21, 40, 51, 26].includes(gate)) return 'HEART';
   if ([5, 14, 29, 34, 27, 59, 42, 3, 9].includes(gate)) return 'SACRAL';
   if ([18, 48, 57, 32, 50, 28, 44].includes(gate)) return 'SPLEEN';
   if ([36, 37, 22, 6, 49, 55, 30].includes(gate)) return 'SOLAR_PLEXUS';
@@ -141,150 +140,18 @@ function determineAuthority(definedCenters: string[]): string {
  * Calculates a Human Design chart with PROFESSIONAL accuracy.
  * Uses NASA JPL Swiss Ephemeris data (±0.0001°)
  */
-router.post('/calculate', asyncHandler(async (req, res) => {
-  const startTime = Date.now();
-  
-  // Validate input
-  const data = calculateSchema.parse(req.body);
-  
-  // Check ephemeris status
-  if (!ephemeris.isUsingEphemerisFiles()) {
-    console.error('╔══════════════════════════════════════════════════════════╗');
-    console.error('║  ⚠️  CRITICAL: PROFESSIONAL ACCURACY NOT AVAILABLE!      ║');
-    console.error('║  Calculation may be INACCURATE!                          ║');
-    console.error('╚══════════════════════════════════════════════════════════╝');
-  }
-  
-  try {
-    // Calculate Julian Day
-    const jd = ephemeris.calculateJulianDay(data);
-    
-    // Calculate Design and Personality positions
-    const { design, personality } = ephemeris.calculateHDMoments(jd, true);
-    
-    // Collect all gates with full details
-    const gates: HDGate[] = [];
-    
-    // Personality planets (black, conscious)
-    for (const [name, pos] of personality) {
-      const gate = ephemeris.longitudeToGate(pos.longitude);
-      const details = ephemeris.calculateHDDetails(pos.longitude);
-      
-      gates.push({
-        number: gate,
-        ...details,
-        planet: name,
-        isDesign: false,
-        longitude: pos.longitude,
-      });
-    }
-    
-    // Design planets (red, unconscious)
-    for (const [name, pos] of design) {
-      const gate = ephemeris.longitudeToGate(pos.longitude);
-      const details = ephemeris.calculateHDDetails(pos.longitude);
-      
-      gates.push({
-        number: gate,
-        ...details,
-        planet: `${name}_DESIGN`,
-        isDesign: true,
-        longitude: pos.longitude,
-      });
-    }
-    
-    // Determine defined centers
-    const definedCentersSet = new Set<string>();
-    for (const gate of gates) {
-      definedCentersSet.add(gateToCenter(gate.number));
-    }
-    
-    // Find active channels
-    const activeGates = new Set(gates.map(g => g.number));
-    const activeChannels: [number, number][] = [];
-    
-    for (const [g1, g2] of CHANNELS) {
-      if (activeGates.has(g1) && activeGates.has(g2)) {
-        activeChannels.push([g1, g2]);
-      }
-    }
-    
-    // All centers
-    const allCenters = ['HEAD', 'AJNA', 'THROAT', 'G_CENTER', 'HEART', 'SACRAL', 'ROOT', 'SPLEEN', 'SOLAR_PLEXUS'];
-    const definedCenters = Array.from(definedCentersSet);
-    const undefinedCenters = allCenters.filter(c => !definedCentersSet.has(c));
-    
-    // Calculate profile
-    const sunGate = gates.find(g => g.planet === 'SUN');
-    const earthGate = gates.find(g => g.planet === 'EARTH');
-    
-    const profileLine1 = sunGate?.line || 1;
-    const profileLine2 = earthGate?.line || 1;
-    const profile = `${profileLine1}/${profileLine2}`;
-    
-    // Energy type and authority
-    const energyType = determineEnergyType(definedCenters, activeChannels);
-    const authority = determineAuthority(definedCenters);
-    
-    // Variables (simplified)
-    const moonGate = gates.find(g => g.planet === 'MOON');
-    const northNode = gates.find(g => g.planet === 'MEAN_NODE');
-    
-    const variables = {
-      digestion: moonGate && moonGate.number <= 16 ? 'COLD' : 'HOT',
-      environment: sunGate ? ['MARKETS', 'CAVES', 'KITCHENS', 'MOUNTAINS', 'VALLEYS', 'SHORES', 'PLAINS'][Math.floor((sunGate.number - 1) / 8)] || 'MARKETS' : 'MARKETS',
-      awareness: northNode && northNode.number <= 16 ? 'SIGHT' : 'OUTER_VISION',
-      motivation: sunGate && sunGate.number <= 8 ? 'FEAR' : sunGate && sunGate.number <= 16 ? 'HOPE' : 'DESIRE',
-      sense: moonGate && moonGate.number <= 8 ? 'SMELL' : moonGate && moonGate.number <= 16 ? 'TOUCH' : 'TASTE',
-      style: northNode && northNode.number <= 8 ? 'LUNAR' : 'PASSIVE',
-    };
-    
-    const calculationTime = Date.now() - startTime;
-    
-    res.json({
-      success: true,
-      accuracy: ephemeris.isUsingEphemerisFiles() ? 'PROFESSIONAL' : 'FALLBACK',
-      data: {
-        energyType,
-        authority,
-        profile,
-        profileLine1,
-        profileLine2,
-        incarnationCross: `Cross of ${sunGate?.number || 1}-${earthGate?.number || 2}`,
-        definedCenters,
-        undefinedCenters,
-        gates: gates.map(g => ({
-          gateNumber: g.number,
-          line: g.line,
-          color: g.color,
-          tone: g.tone,
-          base: g.base,
-          planet: g.planet,
-          isDesign: g.isDesign,
-        })),
-        channels: activeChannels.map(([gate1, gate2]) => ({ gate1, gate2 })),
-        variables,
-      },
-      meta: {
-        calculatedAt: new Date().toISOString(),
-        calculationTimeMs: calculationTime,
-        usingEphemeris: ephemeris.isUsingEphemerisFiles(),
-        swissephVersion: ephemeris.getVersion(),
-        birthData: {
-          ...data,
-          julianDay: jd,
-        },
-      },
-    });
-    
-  } catch (error) {
-    console.error('Calculation error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Calculation failed',
-      details: error instanceof Error ? error.message : String(error),
-    });
-  }
+/**
+ * POST /api/hd/calculate
+ *
+ * DEPRECATED: HD calculations are now performed locally on the client device
+ * for privacy protection. Birth data never leaves the user's device.
+ */
+router.post('/calculate', authenticate, asyncHandler(async (_req, res) => {
+  res.status(410).json({
+    success: false,
+    error: 'GONE',
+    message: 'HD calculations are now performed locally for privacy. Please update your app.',
+  });
 }));
 
 // ============================================================================
@@ -373,7 +240,7 @@ router.get('/health', asyncHandler(async (req, res) => {
 }));
 
 // Diagnostics endpoint (admin only)
-router.get('/diagnostics', asyncHandler(async (req, res) => {
+router.get('/diagnostics', authenticate, requireRole('ADMIN'), asyncHandler(async (req, res) => {
   const diagnostics = ephemeris.getDiagnostics();
   
   res.json({

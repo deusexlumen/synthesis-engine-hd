@@ -5,11 +5,12 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
+import { prisma } from '../lib/prisma';
 import { authService, rbacService, subscriptionService } from '../services/auth';
 import { authenticate, requireAuth } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 
-const router = Router();
+const router: Router = Router();
 
 // ============================================================================
 // VALIDATION SCHEMAS
@@ -18,6 +19,7 @@ const router = Router();
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  name: z.string().min(1).optional(),
 });
 
 const loginSchema = z.object({
@@ -237,18 +239,16 @@ router.post(
     const resetToken = await authService.requestPasswordReset(email);
 
     // In production, send email with reset link
-    // For now, return token in development
+    // Token is logged server-side only for local debugging
     if (process.env.NODE_ENV === 'development' && resetToken) {
       console.log(`Password reset token for ${email}: ${resetToken}`);
     }
 
     // Always return success (don't reveal if email exists)
+    // NEVER return reset tokens in the HTTP response
     res.json({
       success: true,
       message: 'If an account exists, a password reset email has been sent.',
-      ...(process.env.NODE_ENV === 'development' && resetToken
-        ? { debugToken: resetToken }
-        : {}),
     });
   })
 );
@@ -309,6 +309,3 @@ router.post(
 );
 
 export { router as authRouter };
-
-// Import prisma for verify-email route
-import { prisma } from '../lib/prisma';

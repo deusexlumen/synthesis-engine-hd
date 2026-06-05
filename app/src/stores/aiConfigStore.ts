@@ -8,6 +8,7 @@ export interface AIConfig {
   apiKey: string;
   model: string;
   baseUrl?: string;
+  temperature: number;
   enabled: boolean;
 }
 
@@ -16,6 +17,7 @@ interface AIConfigState extends AIConfig {
   setApiKey: (apiKey: string) => void;
   setModel: (model: string) => void;
   setBaseUrl: (baseUrl: string) => void;
+  setTemperature: (temperature: number) => void;
   setEnabled: (enabled: boolean) => void;
   reset: () => void;
   isConfigured: () => boolean;
@@ -34,6 +36,7 @@ const initialState: AIConfig = {
   apiKey: '',
   model: '',
   baseUrl: '',
+  temperature: 0.7,
   enabled: false,
 };
 
@@ -53,6 +56,8 @@ export const useAIConfigStore = create<AIConfigState>()(
 
       setBaseUrl: (baseUrl) => set({ baseUrl }),
 
+      setTemperature: (temperature) => set({ temperature }),
+
       setEnabled: (enabled) => set({ enabled }),
 
       reset: () => set(initialState),
@@ -69,9 +74,10 @@ export const useAIConfigStore = create<AIConfigState>()(
       name: 'synthesis-ai-config',
       partialize: (state) => ({
         provider: state.provider,
-        apiKey: state.apiKey,
+        // NEVER persist API keys to localStorage (XSS risk)
         model: state.model,
         baseUrl: state.baseUrl,
+        temperature: state.temperature,
         enabled: state.enabled,
       }),
     }

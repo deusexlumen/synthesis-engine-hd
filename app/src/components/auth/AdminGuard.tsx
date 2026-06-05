@@ -88,7 +88,7 @@ export function FeatureGuard({
       case 'webhooks':
         return features.webhooks;
       case 'unlimitedCharts':
-        return features.maxCharts === -1 || features.maxCharts > 1;
+        return typeof features.maxCharts === 'number' && (features.maxCharts === -1 || features.maxCharts > 1);
       default:
         return false;
     }

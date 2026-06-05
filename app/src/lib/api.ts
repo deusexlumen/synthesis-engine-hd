@@ -158,7 +158,7 @@ export const api = {
    * Calculate Human Design chart from birth data
    * Returns both HD Chart and Numerology Profile
    */
-  async calculateHD(data: BirthData): Promise<{
+  async calculateHD(data: BirthData, accessToken?: string): Promise<{
     hdChart: HumanDesignChart;
     millmanProfile: MillmanProfile;
     meta: HDChartResponse['meta'];
@@ -177,12 +177,17 @@ export const api = {
     const requestPromise = (async () => {
       const apiData = transformBirthData(data);
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
       const response = await fetchWithTimeout(`${API_BASE}/api/hd/calculate`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
+        headers,
         body: JSON.stringify(apiData),
       });
 

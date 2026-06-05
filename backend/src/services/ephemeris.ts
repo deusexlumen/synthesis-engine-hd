@@ -17,7 +17,12 @@ let sweph: any;
 try {
   sweph = require('sweph');
 } catch (e) {
-  sweph = null;
+  // In test environment, use the mock
+  if (process.env.NODE_ENV === 'test') {
+    sweph = require('../__mocks__/sweph');
+  } else {
+    sweph = null;
+  }
 }
 
 // ============================================================================
@@ -162,20 +167,21 @@ function ensureInitialized(): void {
 // PLANET CONSTANTS
 // ============================================================================
 
+// Swiss Ephemeris planet IDs (fallback to hardcoded values if sweph unavailable)
 export const PLANETS = {
-  SUN: sweph.SE_SUN,
-  MOON: sweph.SE_MOON,
-  MERCURY: sweph.SE_MERCURY,
-  VENUS: sweph.SE_VENUS,
-  MARS: sweph.SE_MARS,
-  JUPITER: sweph.SE_JUPITER,
-  SATURN: sweph.SE_SATURN,
-  URANUS: sweph.SE_URANUS,
-  NEPTUNE: sweph.SE_NEPTUNE,
-  PLUTO: sweph.SE_PLUTO,
-  MEAN_NODE: sweph.SE_MEAN_NODE,
-  TRUE_NODE: sweph.SE_TRUE_NODE,
-  CHIRON: sweph.SE_CHIRON,
+  SUN: sweph?.SE_SUN ?? 0,
+  MOON: sweph?.SE_MOON ?? 1,
+  MERCURY: sweph?.SE_MERCURY ?? 2,
+  VENUS: sweph?.SE_VENUS ?? 3,
+  MARS: sweph?.SE_MARS ?? 4,
+  JUPITER: sweph?.SE_JUPITER ?? 5,
+  SATURN: sweph?.SE_SATURN ?? 6,
+  URANUS: sweph?.SE_URANUS ?? 7,
+  NEPTUNE: sweph?.SE_NEPTUNE ?? 8,
+  PLUTO: sweph?.SE_PLUTO ?? 9,
+  MEAN_NODE: sweph?.SE_MEAN_NODE ?? 10,
+  TRUE_NODE: sweph?.SE_TRUE_NODE ?? 11,
+  CHIRON: sweph?.SE_CHIRON ?? 15,
 } as const;
 
 // Human Design Mandala - Gates in correct order
@@ -342,6 +348,19 @@ export function calculateAllPlanets(jd: number, includeOuter = true): Map<string
     }
   }
   
+  // EARTH is 180° opposite the SUN
+  const sunPos = results.get('SUN');
+  if (sunPos) {
+    results.set('EARTH', {
+      longitude: (sunPos.longitude + 180.0) % 360.0,
+      latitude: -sunPos.latitude,
+      distance: sunPos.distance,
+      longitudeSpeed: sunPos.longitudeSpeed,
+      latitudeSpeed: sunPos.latitudeSpeed,
+      distanceSpeed: sunPos.distanceSpeed,
+    });
+  }
+  
   return results;
 }
 
@@ -355,9 +374,33 @@ export function calculateHDMoments(
 ): { design: Map<string, PlanetPosition>; personality: Map<string, PlanetPosition> } {
   ensureInitialized();
   
-  // Design offset: approximately 88 days
-  const designOffset = 88.0;
-  const designJd = birthJd - designOffset;
+  const flags = sweph.SE_EQUATORIAL;
+  
+  // 1. Get birth sun longitude
+  const birthSun = sweph.calc_ut(birthJd, PLANETS.SUN, flags);
+  const birthSunLon = birthSun.data[0];
+  
+  // 2. Iteratively find JD where sun is exactly 88° before birth sun
+  let designJd = birthJd - 89.0; // rough estimate
+  const targetArc = 88.0;
+  const tolerance = 0.001;
+  
+  for (let i = 0; i < 20; i++) {
+    const designSun = sweph.calc_ut(designJd, PLANETS.SUN, flags);
+    const diff = ((birthSunLon - designSun.data[0]) % 360 + 360) % 360;
+    const error = diff - targetArc;
+    
+    if (Math.abs(error) < tolerance) {
+      break;
+    }
+    
+    const speed = designSun.data[3]; // longitude speed
+    if (Math.abs(speed) < 0.01) {
+      designJd -= error / 0.9856;
+    } else {
+      designJd -= error / speed;
+    }
+  }
   
   const personality = calculateAllPlanets(birthJd, includeOuter);
   const design = calculateAllPlanets(designJd, includeOuter);
@@ -422,6 +465,121 @@ export function closeEphemeris(): void {
   sweph.close();
   isInitialized = false;
   isUsingFiles = false;
+}
+
+// ============================================================================
+// TRANSIT CALCULATIONS
+// ============================================================================
+
+export interface DailyTransit {
+  date: string;
+  planets: Array<{
+    name: string;
+    longitude: number;
+    gate: number;
+    line: number;
+  }>;
+  moon_phase: string;
+}
+
+export interface TransitComparison {
+  date: string;
+  activatedGates: number[];
+  activatedChannels: Array<[number, number]>;
+  summary: string;
+}
+
+const CHANNELS: [number, number][] = [
+  [1, 8], [2, 14], [3, 60], [4, 63], [5, 15], [6, 59],
+  [7, 31], [9, 52], [10, 20], [10, 34], [10, 57], [11, 56],
+  [12, 22], [13, 33], [16, 48], [17, 62], [18, 58], [19, 49],
+  [20, 34], [20, 57], [21, 45], [23, 43], [24, 61], [25, 51],
+  [26, 44], [27, 50], [28, 38], [29, 46], [30, 41], [32, 54],
+  [34, 57], [35, 36], [37, 40], [39, 55], [42, 53], [47, 64],
+];
+
+function getMoonPhase(sunLon: number, moonLon: number): string {
+  const diff = ((moonLon - sunLon) % 360 + 360) % 360;
+  if (diff < 45) return 'new';
+  if (diff < 90) return 'waxing_crescent';
+  if (diff < 135) return 'first_quarter';
+  if (diff < 180) return 'waxing_gibbous';
+  if (diff < 225) return 'full';
+  if (diff < 270) return 'waning_gibbous';
+  if (diff < 315) return 'last_quarter';
+  return 'waning_crescent';
+}
+
+export function calculateDailyTransit(year: number, month: number, day: number): DailyTransit {
+  ensureInitialized();
+  
+  const jd = calculateJulianDay({
+    year, month, day,
+    hour: 12, minute: 0,
+    latitude: 0, longitude: 0, timezone: 0,
+  });
+  
+  const planets = calculateAllPlanets(jd, false);
+  
+  const planetList: DailyTransit['planets'] = [];
+  for (const [name, pos] of planets) {
+    const gate = longitudeToGate(pos.longitude);
+    const details = calculateHDDetails(pos.longitude);
+    planetList.push({
+      name: name === 'MOON' ? 'Mond' : name === 'SUN' ? 'Sonne' : name,
+      longitude: pos.longitude,
+      gate,
+      line: details.line,
+    });
+  }
+  
+  const sunPos = planets.get('SUN');
+  const moonPos = planets.get('MOON');
+  const moonPhase = sunPos && moonPos ? getMoonPhase(sunPos.longitude, moonPos.longitude) : 'unknown';
+  
+  return {
+    date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+    planets: planetList,
+    moon_phase: moonPhase,
+  };
+}
+
+export function compareTransitToNatal(
+  year: number,
+  month: number,
+  day: number,
+  natalGates: number[]
+): TransitComparison {
+  const transit = calculateDailyTransit(year, month, day);
+  
+  const transitGates = new Set(transit.planets.map(p => p.gate));
+  const natalSet = new Set(natalGates);
+  
+  const activatedGates: number[] = [];
+  for (const gate of natalSet) {
+    if (transitGates.has(gate)) {
+      activatedGates.push(gate);
+    }
+  }
+  
+  const activatedChannels: Array<[number, number]> = [];
+  for (const [g1, g2] of CHANNELS) {
+    if (transitGates.has(g1) && natalSet.has(g2)) {
+      activatedChannels.push([g1, g2]);
+    }
+    if (transitGates.has(g2) && natalSet.has(g1)) {
+      if (!activatedChannels.some(c => c[0] === g1 && c[1] === g2)) {
+        activatedChannels.push([g1, g2]);
+      }
+    }
+  }
+  
+  return {
+    date: transit.date,
+    activatedGates,
+    activatedChannels,
+    summary: `${activatedGates.length} Gates und ${activatedChannels.length} Kanäle aktiviert`,
+  };
 }
 
 // Auto-initialize on module load

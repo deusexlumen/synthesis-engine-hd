@@ -1,11 +1,10 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
+import { prisma } from '../lib/prisma';
 
-const router = Router();
-const prisma = new PrismaClient();
+const router: Router = Router();
 
 const saveNumerologySchema = z.object({
   lifePathString: z.string(),
@@ -31,7 +30,7 @@ const saveNumerologySchema = z.object({
 // Save Numerology profile
 router.post('/save', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
   const data = saveNumerologySchema.parse(req.body);
-  const userId = req.user!.id;
+  const userId = req.user!.userId;
 
   // Delete existing profile if any
   await prisma.millmanProfile.deleteMany({
@@ -51,7 +50,7 @@ router.post('/save', authenticate, asyncHandler(async (req: AuthenticatedRequest
 
 // Get user's Numerology profile
 router.get('/profile', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const userId = req.user!.id;
+  const userId = req.user!.userId;
 
   const profile = await prisma.millmanProfile.findUnique({
     where: { userId },
@@ -76,7 +75,7 @@ router.get('/stats', asyncHandler(async (req, res) => {
 
 // Get users with same life path
 router.get('/soulmates', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const userId = req.user!.id;
+  const userId = req.user!.userId;
 
   const userProfile = await prisma.millmanProfile.findUnique({
     where: { userId },

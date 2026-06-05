@@ -21,7 +21,7 @@ describe('Human Design Calculations', () => {
     expect(longitudeToGate(0)).toBe(41);    // Start of Gate 41
     expect(longitudeToGate(5.625)).toBe(19); // Start of Gate 19
     expect(longitudeToGate(11.25)).toBe(13); // Start of Gate 13
-    expect(longitudeToGate(180)).toBe(1);   // Opposite side
+    expect(longitudeToGate(180)).toBe(31);  // Gate 31 at ~180°
   });
 
   it('should calculate line from gate position', () => {
@@ -71,9 +71,10 @@ describe('Numerology Calculations', () => {
     // Total: 1 + 5 + 6 = 12 -> 1+2 = 3
     expect(calculateLifePath('1990-05-15')).toBe(3);
 
-    // Test master number: 1984-11-22
-    // Should result in 11 (master number)
-    expect(calculateLifePath('1984-11-22')).toBe(11);
+    // Test: 1984-11-22
+    // Year: 1+9+8+4 = 22 (master), Month: 11 (master), Day: 2+2 = 4
+    // Total: 22 + 11 + 4 = 37 -> 3+7 = 10 -> 1+0 = 1
+    expect(calculateLifePath('1984-11-22')).toBe(1);
   });
 
   it('should reduce name to expression number', () => {

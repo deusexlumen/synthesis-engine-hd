@@ -25,7 +25,7 @@ declare global {
 
 // Export for routes that need typed requests
 export interface AuthenticatedRequest extends Request {
-  user: {
+  user?: {
     userId: string;
     email: string;
     roles: string[];
@@ -84,24 +84,29 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
  * Optional authentication - doesn't fail if no token
  */
 export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // No token provided - proceed as unauthenticated
+    next();
+    return;
+  }
+
   try {
-    const authHeader = req.headers.authorization;
+    const token = authHeader.substring(7);
+    const payload = verifyAccessToken(token);
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const payload = verifyAccessToken(token);
-
-      req.user = {
-        userId: payload.userId,
-        email: payload.email,
-        roles: payload.roles,
-        tier: payload.tier,
-      };
-    }
+    req.user = {
+      userId: payload.userId,
+      email: payload.email,
+      roles: payload.roles,
+      tier: payload.tier,
+    };
 
     next();
-  } catch {
-    // Ignore errors for optional auth
+  } catch (error) {
+    // Token was provided but is invalid or expired - proceed as unauthenticated
+    // This is OPTIONAL auth, so we don't return 401
     next();
   }
 }

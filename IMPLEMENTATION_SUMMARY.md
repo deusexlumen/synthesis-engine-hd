@@ -56,7 +56,7 @@
 ### 3.2 Journal UI mit Verschlüsselung
 **Rust Backend:**
 - ✅ `storage.rs` - AES-256-GCM Verschlüsselung
-- ✅ Argon2 Key-Derivation
+- ✅ OS Keychain Integration (keyring crate) mit Datei-Fallback
 - ✅ Save/Load/List/Delete Commands
 
 **Frontend:**
@@ -197,7 +197,7 @@ api.ts                - API Client
 
 ### Sicherheit
 - AES-256-GCM für lokale Daten
-- Argon2 für Key-Derivation
+- OS Keychain für Journal-Master-Key (mit Linux-Datei-Fallback)
 - JWT für API-Authentifizierung
 - API-Keys nie im Klartext speichern
 

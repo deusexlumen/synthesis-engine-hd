@@ -11,8 +11,8 @@
 
 use serde::{Deserialize, Serialize};
 use crate::ephemeris::{
-    self, Planet, PlanetPosition, julian_day, Calendar,
-    calculate_planet, calculate_hd_moments, longitude_to_hd_gate, calculate_hd_details
+    self, Planet, julian_day, Calendar,
+    calculate_hd_moments, longitude_to_hd_gate, calculate_hd_details
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,6 +28,7 @@ pub struct BirthData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HumanDesignChart {
     pub energy_type: String,
     pub authority: String,
@@ -43,6 +44,7 @@ pub struct HumanDesignChart {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Gate {
     pub number: i32,
     pub line: i32,
@@ -54,12 +56,14 @@ pub struct Gate {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Channel {
     pub gate_1: i32,
     pub gate_2: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub digestion: String,
     pub environment: String,
@@ -106,7 +110,7 @@ fn gate_to_center(gate: i32) -> &'static str {
         1 | 2 | 7 | 10 | 13 | 15 | 25 | 46 => "G_CENTER",
         
         // Heart Center
-        21 | 40 | 51 | 26 | 44 => "HEART",
+        21 | 40 | 51 | 26 => "HEART",
         
         // Sacral Center
         5 | 14 | 29 | 34 | 27 | 59 | 42 | 3 | 9 => "SACRAL",
@@ -175,8 +179,9 @@ const CHANNELS: [(i32, i32); 36] = [
 /// # Errors
 /// * `HDError` wenn die Berechnung fehlschlägt
 pub fn calculate_hd_chart(birth_data: BirthData) -> Result<HumanDesignChart, Box<dyn std::error::Error>> {
-    // Initialisiere Ephemeris (falls noch nicht geschehen)
-    ephemeris::init_ephemeris(None)?;
+    // Initialisiere Ephemeris mit professionellen .se1 Dateien
+    let ephe_path = ephemeris::find_ephemeris_path();
+    ephemeris::init_ephemeris(ephe_path.as_deref())?;
     
     // Julian Day berechnen (UT)
     let hour_ut = birth_data.hour as i32 - birth_data.timezone as i32;
@@ -191,7 +196,7 @@ pub fn calculate_hd_chart(birth_data: BirthData) -> Result<HumanDesignChart, Box
     );
     
     // Berechne Design- und Personality-Positionen
-    let (design_planets, personality_planets) = calculate_hd_moments(jd)?;
+    let (design_planets, personality_planets) = calculate_hd_moments(jd, true)?;
     
     // Sammle alle Gates
     let mut gates: Vec<Gate> = Vec::new();
@@ -281,7 +286,7 @@ pub fn calculate_hd_chart(birth_data: BirthData) -> Result<HumanDesignChart, Box
     let authority = determine_authority(&defined_centers);
     
     // Inkarnationskreuz
-    let incarnation_cross = determine_incarnation_cross(sun_gate_info.number, earth_gate_info.number);
+    let incarnation_cross = determine_incarnation_cross(sun_gate_info.number, earth_gate_info.number, &profile);
     
     // Kanäle formatieren
     let channels: Vec<Channel> = active_channels
@@ -362,172 +367,234 @@ fn determine_authority(defined_centers: &[String]) -> String {
 }
 
 // Inkarnationskreuz bestimmen (vereinfachte Liste)
-fn determine_incarnation_cross(sun_gate: i32, earth_gate: i32) -> String {
-    let cross_names: std::collections::HashMap<(i32, i32), &str> = [
-        ((1, 2), "Right Angle Cross of the Unexpected"),
-        ((2, 1), "Right Angle Cross of the Unexpected"),
-        ((3, 4), "Right Angle Cross of Planning"),
-        ((4, 3), "Right Angle Cross of Planning"),
-        ((5, 6), "Right Angle Cross of Eden"),
-        ((6, 5), "Right Angle Cross of Eden"),
-        ((7, 8), "Right Angle Cross of the Unexpected"),
-        ((8, 7), "Right Angle Cross of the Unexpected"),
-        ((9, 10), "Right Angle Cross of Planning"),
-        ((10, 9), "Right Angle Cross of Planning"),
-        ((11, 12), "Right Angle Cross of Eden"),
-        ((12, 11), "Right Angle Cross of Eden"),
-        ((13, 14), "Right Angle Cross of the Unexpected"),
-        ((14, 13), "Right Angle Cross of the Unexpected"),
-        ((15, 16), "Right Angle Cross of Planning"),
-        ((16, 15), "Right Angle Cross of Planning"),
-        ((17, 18), "Right Angle Cross of Eden"),
-        ((18, 17), "Right Angle Cross of Eden"),
-        ((19, 20), "Right Angle Cross of the Unexpected"),
-        ((20, 19), "Right Angle Cross of the Unexpected"),
-        ((21, 22), "Right Angle Cross of Planning"),
-        ((22, 21), "Right Angle Cross of Planning"),
-        ((23, 24), "Right Angle Cross of Eden"),
-        ((24, 23), "Right Angle Cross of Eden"),
-        ((25, 26), "Right Angle Cross of the Unexpected"),
-        ((26, 25), "Right Angle Cross of the Unexpected"),
-        ((27, 28), "Right Angle Cross of Planning"),
-        ((28, 27), "Right Angle Cross of Planning"),
-        ((29, 30), "Right Angle Cross of Eden"),
-        ((30, 29), "Right Angle Cross of Eden"),
-        ((31, 32), "Right Angle Cross of the Unexpected"),
-        ((32, 31), "Right Angle Cross of the Unexpected"),
-        ((33, 34), "Right Angle Cross of Planning"),
-        ((34, 33), "Right Angle Cross of Planning"),
-        ((35, 36), "Right Angle Cross of Eden"),
-        ((36, 35), "Right Angle Cross of Eden"),
-        ((37, 38), "Right Angle Cross of the Unexpected"),
-        ((38, 37), "Right Angle Cross of the Unexpected"),
-        ((39, 40), "Right Angle Cross of Planning"),
-        ((40, 39), "Right Angle Cross of Planning"),
-        ((41, 42), "Right Angle Cross of Eden"),
-        ((42, 41), "Right Angle Cross of Eden"),
-        ((43, 44), "Right Angle Cross of the Unexpected"),
-        ((44, 43), "Right Angle Cross of the Unexpected"),
-        ((45, 46), "Right Angle Cross of Planning"),
-        ((46, 45), "Right Angle Cross of Planning"),
-        ((47, 48), "Right Angle Cross of Eden"),
-        ((48, 47), "Right Angle Cross of Eden"),
-        ((49, 50), "Right Angle Cross of the Unexpected"),
-        ((50, 49), "Right Angle Cross of the Unexpected"),
-        ((51, 52), "Right Angle Cross of Planning"),
-        ((52, 51), "Right Angle Cross of Planning"),
-        ((53, 54), "Right Angle Cross of Eden"),
-        ((54, 53), "Right Angle Cross of Eden"),
-        ((55, 56), "Right Angle Cross of the Unexpected"),
-        ((56, 55), "Right Angle Cross of the Unexpected"),
-        ((57, 58), "Right Angle Cross of Planning"),
-        ((58, 57), "Right Angle Cross of Planning"),
-        ((59, 60), "Right Angle Cross of Eden"),
-        ((60, 59), "Right Angle Cross of Eden"),
-        ((61, 62), "Right Angle Cross of the Unexpected"),
-        ((62, 61), "Right Angle Cross of the Unexpected"),
-        ((63, 64), "Right Angle Cross of Planning"),
-        ((64, 63), "Right Angle Cross of Planning"),
-    ].iter().cloned().collect();
-    
-    cross_names
-        .get(&(sun_gate, earth_gate))
-        .unwrap_or(&"Unknown Cross")
-        .to_string()
+/// Bestimmt den Inkarnationskreuz-Typ aus dem Profil
+///
+/// Right Angle: 1/3, 1/4, 2/4, 2/5, 3/5, 3/6, 4/6
+/// Juxtaposition: 4/1
+/// Left Angle: 5/1, 5/2, 6/2, 6/3
+fn cross_type_from_profile(profile: &str) -> &'static str {
+    match profile {
+        "1/3" | "1/4" | "2/4" | "2/5" | "3/5" | "3/6" | "4/6" => "Right Angle Cross",
+        "4/1" => "Juxtaposition Cross",
+        "5/1" | "5/2" | "6/2" | "6/3" => "Left Angle Cross",
+        _ => "Cross", // Fallback für ungewöhnliche Profile
+    }
 }
 
-// Variablen berechnen aus den Gates
+/// Bekannte Inkarnationskreuze nach Sonnen-Gate.
+/// Jeder Eintrag ist der thematische Name des Kreuzes (ohne Typ/Variation).
+/// Insgesamt gibt es 112 thematische Namen für 192 Kreuze.
+/// TODO: Vollständige 112 thematische Namen ergänzen.
+fn cross_name_for_gate(sun_gate: i32) -> &'static str {
+    // Quellen: "The Definitive Book of Human Design" (Ra Uru Hu), geneticmatrix.com
+    match sun_gate {
+        1 => "of the Unexpected",
+        2 => "of the Sphinx",
+        3 => "of Planning",
+        4 => "of Formulization",
+        5 => "of Eden",
+        6 => "of Conflict",
+        7 => "of the Unexpected",
+        8 => "of Contagion",
+        9 => "of Focus",
+        10 => "of the Vessel of Love",
+        11 => "of the Unexpected",
+        12 => "of Eden",
+        13 => "of the Unexpected",
+        14 => "of Contagion",
+        15 => "of the Vessel of Love",
+        16 => "of Planning",
+        17 => "of Opinions",
+        18 => "of Correction",
+        19 => "of the Unexpected",
+        20 => "of the Sleeping Phoenix",
+        21 => "of Planning",
+        22 => "of the Unexpected",
+        23 => "of Explanation",
+        24 => "of the Unexpected",
+        25 => "of the Vessel of Love",
+        26 => "of the Unexpected",
+        27 => "of Planning",
+        28 => "of the Unexpected",
+        29 => "of Eden",
+        30 => "of Eden",
+        31 => "of the Unexpected",
+        32 => "of Planning",
+        33 => "of the Unexpected",
+        34 => "of the Sleeping Phoenix",
+        35 => "of Consciousness",
+        36 => "of Conflict",
+        37 => "of Eden",
+        38 => "of the Unexpected",
+        39 => "of Planning",
+        40 => "of Eden",
+        41 => "of the Unexpected",
+        42 => "of Planning",
+        43 => "of the Unexpected",
+        44 => "of the Unexpected",
+        45 => "of Rulership",
+        46 => "of the Vessel of Love",
+        47 => "of Rulership",
+        48 => "of the Unexpected",
+        49 => "of the Unexpected",
+        50 => "of Planning",
+        51 => "of the Unexpected",
+        52 => "of Planning",
+        53 => "of the Unexpected",
+        54 => "of the Unexpected",
+        55 => "of Eden",
+        56 => "of the Unexpected",
+        57 => "of the Unexpected",
+        58 => "of Planning",
+        59 => "of Eden",
+        60 => "of Eden",
+        61 => "of Maya",
+        62 => "of Maya",
+        63 => "of Consciousness",
+        64 => "of Consciousness",
+        _ => "",
+    }
+}
+
+fn determine_incarnation_cross(sun_gate: i32, _earth_gate: i32, profile: &str) -> String {
+    let cross_type = cross_type_from_profile(profile);
+    let name = cross_name_for_gate(sun_gate);
+
+    if name.is_empty() {
+        format!("{} (Gate {} — unmapped)", cross_type, sun_gate)
+    } else {
+        format!("{} {}", cross_type, name)
+    }
+}
+
+/// PHS Determination / Digestion nach Color (1–6) + Richtung (Left/Right)
+fn determination_from_color(color: i32, line: i32) -> String {
+    let base = match color {
+        1 => "Appetite",
+        2 => "Taste",
+        3 => "Thirst",
+        4 => "Touch",
+        5 => "Sound",
+        6 => "Light",
+        _ => "Appetite",
+    };
+    // Left (Strategic/Active) = Lines 1–3, Right (Receptive/Passive) = Lines 4–6
+    let direction = if line <= 3 { "Left" } else { "Right" };
+    format!("{} ({})", base, direction)
+}
+
+/// PHS Environment nach Color (1–6)
+fn environment_from_color(color: i32) -> &'static str {
+    match color {
+        1 => "Markets",
+        2 => "Caves",
+        3 => "Kitchens",
+        4 => "Mountains",
+        5 => "Valleys",
+        6 => "Shores",
+        _ => "Markets",
+    }
+}
+
+/// PHS Awareness (Cognition/Sense) nach Tone (1–6)
+fn awareness_from_tone(tone: i32) -> &'static str {
+    match tone {
+        1 => "Smell",
+        2 => "Taste",
+        3 => "Outer Vision",
+        4 => "Inner Vision",
+        5 => "Feeling",
+        6 => "Touch",
+        _ => "Smell",
+    }
+}
+
+/// Motivation nach Personality Sun Color (1–6)
+fn motivation_from_color(color: i32) -> &'static str {
+    match color {
+        1 => "Fear",
+        2 => "Hope",
+        3 => "Desire",
+        4 => "Need",
+        5 => "Guilt",
+        6 => "Innocence",
+        _ => "Fear",
+    }
+}
+
+/// Style (Lunar/Passive/Active) nach Node Tone
+fn style_from_tone(tone: i32) -> &'static str {
+    match tone {
+        1 | 2 => "Lunar",
+        3 | 4 => "Passive",
+        5 | 6 => "Active",
+        _ => "Lunar",
+    }
+}
+
+/// Berechnet die 4 Variablen (Primary Health System / PHS) nach Human Design.
+///
+/// Quellen: Ra Uru Hu's "Primary Health System" (Four Transformations)
+/// - Digestion:    Design Moon Color + Line (Left/Right)
+/// - Environment:  Design Sun Color
+/// - Awareness:    Design Moon Tone (Cognition/Sense)
+/// - Motivation:   Personality Sun Color
+/// - Sense:        Design Moon Tone (synonym zu Awareness in PHS)
+/// - Style:        Node Tone
 fn calculate_variables(gates: &[Gate]) -> Variables {
-    // Variablen werden aus spezifischen Planetenpositionen berechnet
-    // Dies ist eine vereinfachte Implementierung
-    
-    // Suche relevante Planeten
-    let sun = gates.iter().find(|g| g.planet == "SUN");
-    let moon = gates.iter().find(|g| g.planet == "MOON");
+    // Unterschiede zwischen Personality (rot, Bewusstsein) und Design (schwarz, Unbewusstheit):
+    // Für PHS verwenden wir primär die DESIGN-Positionen (unbewusste Ebene).
+    let design_sun = gates.iter().find(|g| g.planet == "SUN" && g.is_design);
+    let design_moon = gates.iter().find(|g| g.planet == "MOON" && g.is_design);
+    let personality_sun = gates.iter().find(|g| g.planet == "SUN" && !g.is_design);
     let north_node = gates.iter().find(|g| g.planet == "NORTH_NODE");
-    
-    // Digestion: Aus Mond-Position (vereinfacht)
-    let digestion = if let Some(m) = moon {
-        match m.number {
-            1..=16 => "COLD",
-            _ => "HOT",
-        }
+
+    // Digestion (Determination) = Design Moon Color + Line-Richtung
+    let digestion = if let Some(m) = design_moon {
+        determination_from_color(m.color, m.line)
     } else {
-        "COLD"
+        "Appetite (Left)".to_string()
     };
-    
-    // Environment: Aus Sonnen-Position (vereinfacht)
-    let environment = if let Some(s) = sun {
-        match s.number {
-            1..=8 => "MARKETS",
-            9..=16 => "CAVES",
-            17..=24 => "KITCHENS",
-            25..=32 => "MOUNTAINS",
-            33..=40 => "VALLEYS",
-            41..=48 => "SHORES",
-            49..=56 => "PLAINS",
-            _ => "MARKETS",
-        }
+
+    // Environment = Design Sun Color
+    let environment = if let Some(s) = design_sun {
+        environment_from_color(s.color)
     } else {
-        "MARKETS"
+        "Markets"
     };
-    
-    // Awareness: Aus Mondknoten (vereinfacht)
-    let awareness = if let Some(n) = north_node {
-        match n.number {
-            1..=16 => "SIGHT",
-            17..=32 => "TASTE",
-            33..=48 => "OUTER_VISION",
-            _ => "SIGHT",
-        }
+
+    // Awareness (Cognition) = Design Moon Tone
+    let awareness = if let Some(m) = design_moon {
+        awareness_from_tone(m.tone)
     } else {
-        "SIGHT"
+        "Smell"
     };
-    
-    // Motivation: Aus Sonne (vereinfacht)
-    let motivation = if let Some(s) = sun {
-        match s.number {
-            1..=8 => "FEAR",
-            9..=16 => "HOPE",
-            17..=24 => "DESIRE",
-            25..=32 => "NEED",
-            33..=40 => "GUILT",
-            41..=48 => "INNOCENCE",
-            _ => "FEAR",
-        }
+
+    // Motivation = Personality Sun Color
+    let motivation = if let Some(s) = personality_sun {
+        motivation_from_color(s.color)
+    } else if let Some(s) = design_sun {
+        motivation_from_color(s.color)
     } else {
-        "FEAR"
+        "Fear"
     };
-    
-    // Sense: Aus Mond (vereinfacht)
-    let sense = if let Some(m) = moon {
-        match m.number {
-            1..=8 => "SMELL",
-            9..=16 => "TOUCH",
-            17..=24 => "TASTE",
-            25..=32 => "SIGHT",
-            33..=40 => "OUTER_VISION",
-            41..=48 => "INTUITION",
-            _ => "SMELL",
-        }
+
+    // Sense = Design Moon Tone (synonym zu Awareness in PHS)
+    let sense = if let Some(m) = design_moon {
+        awareness_from_tone(m.tone)
     } else {
-        "SMELL"
+        "Smell"
     };
-    
-    // Style: Aus Mondknoten (vereinfacht)
+
+    // Style = Node Tone
     let style = if let Some(n) = north_node {
-        match n.number {
-            1..=8 => "LUNAR",
-            9..=16 => "PASSIVE",
-            17..=24 => "ACTIVE",
-            _ => "LUNAR",
-        }
+        style_from_tone(n.tone)
     } else {
-        "LUNAR"
+        "Lunar"
     };
-    
+
     Variables {
-        digestion: digestion.to_string(),
+        digestion,
         environment: environment.to_string(),
         awareness: awareness.to_string(),
         motivation: motivation.to_string(),

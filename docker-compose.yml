@@ -1,5 +1,12 @@
 version: '3.8'
 
+# Production Docker Compose for Synthesis Engine
+# Usage: docker compose up -d
+#
+# Required environment variables (set in .env or shell):
+#   DATABASE_URL, DIRECT_URL, JWT_SECRET, JWT_REFRESH_SECRET,
+#   OPENAI_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+
 services:
   # PostgreSQL Database
   postgres:
@@ -7,55 +14,52 @@ services:
     container_name: synthesis-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: synthesis_engine
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-synthesis_engine}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
       timeout: 5s
       retries: 5
-
-  # Redis (for sessions/rate limiting)
-  redis:
-    image: redis:7-alpine
-    container_name: synthesis-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
 
   # Backend API
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: production
     container_name: synthesis-backend
     restart: unless-stopped
     environment:
-      NODE_ENV: development
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/synthesis_engine
-      DIRECT_URL: postgresql://postgres:postgres@postgres:5432/synthesis_engine
-      JWT_ACCESS_SECRET: your-access-secret-change-in-production-min-32-chars
-      JWT_REFRESH_SECRET: your-refresh-secret-change-in-production-min-32-chars
-      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      SE_EPHE_PATH: /app/ephemeris
     ports:
       - "3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
-    command: npm run dev
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
 
 volumes:
   postgres_data:
-  redis_data:

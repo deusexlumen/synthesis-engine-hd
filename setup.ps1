@@ -13,13 +13,13 @@ Write-Host ""
 Write-Host "Checking Node.js..."
 $nodeVersion = node -v 2>$null
 if (-not $nodeVersion) {
-    Write-Host "✗ Node.js not found! Please install Node.js 18+" -ForegroundColor Red
+    Write-Host "✗ Node.js not found! Please install Node.js 20+" -ForegroundColor Red
     exit 1
 }
 
 $majorVersion = ($nodeVersion -replace 'v','').Split('.')[0]
-if ([int]$majorVersion -lt 18) {
-    Write-Host "✗ Node.js version must be 18+. Found: $nodeVersion" -ForegroundColor Red
+if ([int]$majorVersion -lt 20) {
+    Write-Host "✗ Node.js version must be 20+. Found: $nodeVersion" -ForegroundColor Red
     exit 1
 }
 Write-Host "✓ Node.js $nodeVersion" -ForegroundColor Green

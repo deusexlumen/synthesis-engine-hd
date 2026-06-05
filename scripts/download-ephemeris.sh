@@ -16,6 +16,7 @@ NC='\033[0m' # No Color
 TARGET_PATH="../app/src-tauri/ephemeris"
 TIME_RANGE="1800-2400"
 BASE_URL="https://raw.githubusercontent.com/aloistr/swisseph/master/ephe"
+VERIFY_CHECKSUMS=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -28,6 +29,10 @@ while [[ $# -gt 0 ]]; do
             TIME_RANGE="$2"
             shift 2
             ;;
+        -v|--verify)
+            VERIFY_CHECKSUMS=true
+            shift
+            ;;
         -h|--help)
             echo "Swiss Ephemeris Downloader"
             echo ""
@@ -36,12 +41,14 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  -t, --target PATH    Target directory (default: ../app/src-tauri/ephemeris)"
             echo "  -r, --range RANGE    Time range: 1800-2400, 3000, or all (default: 1800-2400)"
+            echo "  -v, --verify         Verify SHA-256 checksums after download"
             echo "  -h, --help           Show this help message"
             echo ""
             echo "Examples:"
             echo "  $0                                    # Download standard files"
             echo "  $0 -r 3000                           # Download extended range"
             echo "  $0 -t /usr/share/sweph/ephe          # Download to system path"
+            echo "  $0 -v                                # Download and verify checksums"
             exit 0
             ;;
         *)
@@ -112,6 +119,32 @@ for i in "${!FILES[@]}"; do
     else
         echo -e "  ${RED}✗ Failed${NC}"
         ((FAIL_COUNT++))
+        continue
+    fi
+    
+    # Verify checksum if requested and checksum file exists
+    if [ "$VERIFY_CHECKSUMS" = true ]; then
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        CHECKSUM_FILE="$SCRIPT_DIR/ephemeris-checksums.sha256"
+        if [ -f "$CHECKSUM_FILE" ]; then
+            EXPECTED=$(grep "${FILE}$" "$CHECKSUM_FILE" | awk '{print $1}')
+            if [ -n "$EXPECTED" ]; then
+                ACTUAL=$(sha256sum "$OUTPUT" | awk '{print $1}')
+                if [ "$EXPECTED" = "$ACTUAL" ]; then
+                    echo -e "  ${GREEN}  ✓ Checksum verified${NC}"
+                else
+                    echo -e "  ${RED}  ✗ Checksum mismatch! File may be corrupted.${NC}"
+                    echo -e "  ${GRAY}    Expected: $EXPECTED${NC}"
+                    echo -e "  ${GRAY}    Actual:   $ACTUAL${NC}"
+                    ((FAIL_COUNT++))
+                fi
+            else
+                echo -e "  ${YELLOW}  ⚠ No checksum found for $FILE${NC}"
+                echo -e "  ${GRAY}    Add it to: $CHECKSUM_FILE${NC}"
+            fi
+        else
+            echo -e "  ${YELLOW}  ⚠ Checksum file not found: $CHECKSUM_FILE${NC}"
+        fi
     fi
 done
 

@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../middleware/errorHandler';
-import { authenticate, AuthenticatedRequest, requirePremium } from '../middleware/auth';
+import { authenticate, AuthenticatedRequest, requireTier } from '../middleware/auth';
 
-const router = Router();
+const router: Router = Router();
 
 // Proxy AI requests (optional - users can also call APIs directly)
 const proxyRequestSchema = z.object({
@@ -19,7 +19,7 @@ const proxyRequestSchema = z.object({
 });
 
 // Proxy AI request (for users who don't want to call APIs directly from frontend)
-router.post('/proxy', authenticate, requirePremium, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.post('/proxy', authenticate, requireTier(['PREMIUM', 'PRO']), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const data = proxyRequestSchema.parse(req.body);
   
   // Get user's API key from request header (frontend sends it)
@@ -46,6 +46,37 @@ router.post('/proxy', authenticate, requirePremium, asyncHandler(async (req: Aut
         if (!data.baseUrl) {
           return res.status(400).json({ error: 'Base URL required for custom provider' });
         }
+        // SSRF protection: validate custom baseUrl
+        try {
+          const url = new URL(data.baseUrl);
+          const hostname = url.hostname.toLowerCase();
+          // Block private IPs and internal metadata endpoints
+          const blockedPatterns = [
+            /^localhost$/,
+            /^127\./,
+            /^10\./,
+            /^172\.(1[6-9]|2[0-9]|3[01])\./,
+            /^192\.168\./,
+            /^169\.254\./,
+            /^0\./,
+            /^::1$/,
+            /^fc00:/i,
+            /^fe80:/i,
+            /\.internal$/,
+            /\.local$/,
+            /metadata\.google\.internal$/,
+            /169\.254\.169\.254/,
+          ];
+          if (blockedPatterns.some(pattern => pattern.test(hostname))) {
+            return res.status(400).json({ error: 'Custom base URL points to a blocked/internal address' });
+          }
+          // Only allow http/https
+          if (!['http:', 'https:'].includes(url.protocol)) {
+            return res.status(400).json({ error: 'Custom base URL must use HTTP or HTTPS' });
+          }
+        } catch {
+          return res.status(400).json({ error: 'Invalid custom base URL' });
+        }
         response = await callCustom(userApiKey, data);
         break;
       default:
@@ -55,10 +86,7 @@ router.post('/proxy', authenticate, requirePremium, asyncHandler(async (req: Aut
     res.json(response);
   } catch (error: any) {
     console.error('AI proxy error:', error);
-    res.status(502).json({ 
-      error: 'AI provider error',
-      message: error.message,
-    });
+    throw new Error(`AI provider error: ${error.message}`);
   }
 }));
 
@@ -205,7 +233,7 @@ async function callGoogle(apiKey: string, data: any) {
     throw new Error(`Google error: ${error}`);
   }
 
-  const result = await response.json();
+  const result: any = await response.json();
   
   // Convert Google response to OpenAI-style format
   return {

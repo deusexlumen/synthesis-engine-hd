@@ -1,0 +1,10 @@
+# Swiss Ephemeris Checksums
+# Generate with: sha256sum *.se1 > ephemeris-checksums.sha256
+# Verify with: sha256sum -c ephemeris-checksums.sha256
+#
+# These are the expected SHA-256 checksums for the Swiss Ephemeris files.
+# After downloading, verify integrity with the download scripts (-verify flag)
+# or run: sha256sum -c ephemeris-checksums.sha256
+#
+# NOTE: Replace these placeholder values with actual checksums after first download:
+#   cd app/src-tauri/ephemeris && sha256sum *.se1 > ../../scripts/ephemeris-checksums.sha256

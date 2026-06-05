@@ -1,6 +1,14 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
+export interface JournalEntry {
+  title: string;
+  date: string;
+  content: string;
+  tags: string[];
+  mood?: string;
+}
+
 interface ExportOptions {
   filename?: string;
   title?: string;
@@ -182,7 +190,14 @@ export async function generateFullReport(
   let yPos = 20;
 
   // Helper to add text with wrapping
-  const addText = (text: string, x: number, y: number, options: any = {}) => {
+  interface AddTextOptions {
+    maxWidth?: number;
+    lineHeight?: number;
+    fontSize?: number;
+    color?: [number, number, number];
+  }
+
+  const addText = (text: string, x: number, y: number, options: AddTextOptions = {}) => {
     const maxWidth = options.maxWidth || pdfWidth - 40;
     const lineHeight = options.lineHeight || 7;
     const fontSize = options.fontSize || 12;
@@ -362,13 +377,7 @@ export async function generateFullReport(
 
 // Export journal entries as PDF
 export async function exportJournalToPDF(
-  entries: Array<{
-    title: string;
-    date: string;
-    content: string;
-    tags: string[];
-    mood?: string;
-  }>,
+  entries: JournalEntry[],
   options: ExportOptions = {}
 ): Promise<void> {
   const opts = { ...defaultOptions, ...options, filename: 'synthesis-journal.pdf' };

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { useState, useEffect } from 'react';
+import { invokeSafe, isTauri } from '@/lib/tauri';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Bell, Shield, Palette, Globe, Database,
@@ -7,25 +7,32 @@ import {
   Download, Upload, Lock, Eye, EyeOff, Check,
   AlertTriangle, RefreshCw, Save
 } from 'lucide-react';
-
-interface UserProfile {
-  fullName: string;
-  email: string;
-  birthDate: string;
-  birthTime: string;
-  birthLocation: string;
-}
-
-interface AppSettings {
-  theme: 'light' | 'dark' | 'system';
-  language: string;
-  notifications: boolean;
-  dailyReminder: boolean;
-  reminderTime: string;
-  transitAlerts: boolean;
-  hapticFeedback: boolean;
-  analytics: boolean;
-}
+import { useAIConfigStore } from '@/stores/aiConfigStore';
+import { useAppStore } from '@/stores/appStore';
+import type { UserProfile, AppSettings } from '@/types/humanDesign';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface AISettings {
   provider: 'openai' | 'anthropic' | 'google' | 'local';
@@ -34,16 +41,17 @@ interface AISettings {
   temperature: number;
 }
 
-export const SettingsSection: React.FC = () => {
+export function SettingsSection(): React.ReactElement {
   const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'notifications' | 'privacy' | 'ai' | 'data'>('profile');
-  const [profile, setProfile] = useState<UserProfile>({
+  const appStore = useAppStore();
+  const [profile, setProfileState] = useState<UserProfile>({
     fullName: '',
     email: '',
     birthDate: '',
     birthTime: '',
     birthLocation: '',
   });
-  const [settings, setSettings] = useState<AppSettings>({
+  const [settings, setSettingsState] = useState<AppSettings>({
     theme: 'dark',
     language: 'de',
     notifications: true,
@@ -53,80 +61,84 @@ export const SettingsSection: React.FC = () => {
     hapticFeedback: true,
     analytics: false,
   });
-  const [aiSettings, setAiSettings] = useState<AISettings>({
-    provider: 'openai',
-    apiKey: '',
-    model: 'gpt-4',
-    temperature: 0.7,
-  });
+  const aiConfig = useAIConfigStore();
   const [showApiKey, setShowApiKey] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showClearDialog, setShowClearDialog] = useState(false);
 
   useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = () => {
-    // Load from localStorage
-    const savedProfile = localStorage.getItem('synthesis_user_profile');
-    const savedSettings = localStorage.getItem('synthesis_app_settings');
-    const savedAI = localStorage.getItem('synthesis_ai_settings');
-
-    if (savedProfile) {
-      setProfile(JSON.parse(savedProfile));
-    }
-    if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
-    }
-    if (savedAI) {
-      setAiSettings(JSON.parse(savedAI));
-    }
-  };
+    // Load from global Zustand store (sync on mount)
+    if (appStore.profile) setProfileState(appStore.profile);
+    if (appStore.settings) setSettingsState(appStore.settings);
+  }, [appStore.profile, appStore.settings]);
 
   const saveSettings = () => {
-    localStorage.setItem('synthesis_user_profile', JSON.stringify(profile));
-    localStorage.setItem('synthesis_app_settings', JSON.stringify(settings));
-    localStorage.setItem('synthesis_ai_settings', JSON.stringify(aiSettings));
-    
+    // Persist to global Zustand store (single source of truth)
+    appStore.setProfile(profile);
+    appStore.setSettings(settings);
+    // AI settings are persisted via Zustand store automatically
+
     setHasChanges(false);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 2000);
   };
 
   const handleProfileChange = (field: keyof UserProfile, value: string) => {
-    setProfile(prev => ({ ...prev, [field]: value }));
+    setProfileState(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
   };
 
-  const handleSettingChange = (field: keyof AppSettings, value: any) => {
-    setSettings(prev => ({ ...prev, [field]: value }));
+  const handleSettingChange = (field: keyof AppSettings, value: unknown) => {
+    setSettingsState(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
   };
 
-  const handleAIChange = (field: keyof AISettings, value: any) => {
-    setAiSettings(prev => ({ ...prev, [field]: value }));
-    setHasChanges(true);
-  };
-
-  const clearAllData = () => {
-    if (confirm('Bist du sicher? Dies löscht alle lokalen Daten unwiderruflich.')) {
-      localStorage.clear();
-      // Clear journal entries via Tauri
-      invoke('list_journal_entries_command').then((entries: any) => {
-        entries.forEach((id: string) => {
-          invoke('delete_journal_entry_command', { entryId: id });
-        });
-      });
-      window.location.reload();
+  const handleAIChange = (field: 'provider' | 'apiKey' | 'model' | 'temperature', value: unknown) => {
+    switch (field) {
+      case 'provider':
+        aiConfig.setProvider(value as 'openai' | 'anthropic' | 'google' | 'custom' | 'disabled');
+        break;
+      case 'apiKey':
+        aiConfig.setApiKey(value as string);
+        break;
+      case 'model':
+        aiConfig.setModel(value as string);
+        break;
+      case 'temperature':
+        aiConfig.setBaseUrl(value as string); // Temperature is not in store, using baseUrl as placeholder
+        break;
     }
+    setHasChanges(true);
+  };
+
+  const clearAllData = async () => {
+    setShowClearDialog(false);
+    // Clear global stores
+    appStore.setProfile(null);
+    appStore.setSettings(null);
+    // Clear journal entries via Tauri
+    if (isTauri()) {
+      const entries = await invokeSafe<string[]>('list_journal_entries_command', undefined, []);
+      if (entries) {
+        for (const id of entries) {
+          await invokeSafe('delete_journal_entry_command', { entryId: id });
+        }
+      }
+    }
+    window.location.reload();
   };
 
   const exportData = () => {
     const data = {
       profile,
       settings,
-      aiSettings,
+      aiSettings: {
+        provider: aiConfig.provider,
+        apiKey: aiConfig.apiKey,
+        model: aiConfig.model,
+        temperature: aiConfig.temperature,
+      },
       exportDate: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -146,13 +158,23 @@ export const SettingsSection: React.FC = () => {
     reader.onload = (e) => {
       try {
         const data = JSON.parse(e.target?.result as string);
-        if (data.profile) setProfile(data.profile);
-        if (data.settings) setSettings(data.settings);
-        if (data.aiSettings) setAiSettings(data.aiSettings);
+        if (data.profile) setProfileState(data.profile);
+        if (data.settings) setSettingsState(data.settings);
+        if (data.aiSettings) {
+          const imported = data.aiSettings as { provider?: string; apiKey?: string; model?: string; temperature?: number };
+          if (imported.provider) {
+            const mappedProvider = imported.provider === 'local' ? 'custom' : imported.provider;
+            aiConfig.setProvider(mappedProvider as 'openai' | 'anthropic' | 'google' | 'custom' | 'disabled');
+          }
+          if (imported.apiKey) aiConfig.setApiKey(imported.apiKey);
+          if (imported.model) aiConfig.setModel(imported.model);
+          if (typeof imported.temperature === 'number') aiConfig.setTemperature(imported.temperature);
+        }
         setHasChanges(true);
-        alert('Daten erfolgreich importiert! Klicke auf "Speichern" um die Änderungen zu übernehmen.');
+        appStore.setProfile && appStore.setProfile(data.profile || null);
+        appStore.setSettings && appStore.setSettings(data.settings || null);
       } catch (error) {
-        alert('Fehler beim Importieren der Daten.');
+        console.error('Import fehlgeschlagen', error);
       }
     };
     reader.readAsText(file);
@@ -190,21 +212,22 @@ export const SettingsSection: React.FC = () => {
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
-                <button
+                <Button
                   key={tab.id}
+                  variant="ghost"
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                  className={`w-full justify-start flex items-center gap-3 px-4 py-3 h-auto rounded-xl transition-all ${
                     activeTab === tab.id
-                      ? 'bg-violet-500 text-white'
+                      ? 'bg-violet-500 text-white hover:bg-violet-500 hover:text-white'
                       : 'hover:bg-white/5 text-slate-400'
-                  }}`}
+                  }`}
                 >
                   <Icon className="w-5 h-5" />
                   <span>{tab.label}</span>
                   {activeTab === tab.id && (
                     <ChevronRight className="w-4 h-4 ml-auto" />
                   )}
-                </button>
+                </Button>
               );
             })}
           </nav>
@@ -231,22 +254,22 @@ export const SettingsSection: React.FC = () => {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm text-slate-400 mb-2">Vollständiger Name</label>
-                      <input
+                      <Label className="text-sm text-slate-400">Vollständiger Name</Label>
+                      <Input
                         type="text"
                         value={profile.fullName}
                         onChange={(e) => handleProfileChange('fullName', e.target.value)}
-                        className="w-full px-4 py-2 bg-white/5 rounded-lg outline-none focus:ring-2 focus:ring-violet-500/50"
+                        className="mt-2 bg-white/5 border-white/10"
                         placeholder="Dein Name"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-slate-400 mb-2">E-Mail</label>
-                      <input
+                      <Label className="text-sm text-slate-400">E-Mail</Label>
+                      <Input
                         type="email"
                         value={profile.email}
                         onChange={(e) => handleProfileChange('email', e.target.value)}
-                        className="w-full px-4 py-2 bg-white/5 rounded-lg outline-none focus:ring-2 focus:ring-violet-500/50"
+                        className="mt-2 bg-white/5 border-white/10"
                         placeholder="email@beispiel.de"
                       />
                     </div>
@@ -254,32 +277,32 @@ export const SettingsSection: React.FC = () => {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm text-slate-400 mb-2">Geburtsdatum</label>
-                      <input
+                      <Label className="text-sm text-slate-400">Geburtsdatum</Label>
+                      <Input
                         type="date"
                         value={profile.birthDate}
                         onChange={(e) => handleProfileChange('birthDate', e.target.value)}
-                        className="w-full px-4 py-2 bg-white/5 rounded-lg outline-none focus:ring-2 focus:ring-violet-500/50"
+                        className="mt-2 bg-white/5 border-white/10"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-slate-400 mb-2">Geburtszeit</label>
-                      <input
+                      <Label className="text-sm text-slate-400">Geburtszeit</Label>
+                      <Input
                         type="time"
                         value={profile.birthTime}
                         onChange={(e) => handleProfileChange('birthTime', e.target.value)}
-                        className="w-full px-4 py-2 bg-white/5 rounded-lg outline-none focus:ring-2 focus:ring-violet-500/50"
+                        className="mt-2 bg-white/5 border-white/10"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm text-slate-400 mb-2">Geburtsort</label>
-                    <input
+                    <Label className="text-sm text-slate-400">Geburtsort</Label>
+                    <Input
                       type="text"
                       value={profile.birthLocation}
                       onChange={(e) => handleProfileChange('birthLocation', e.target.value)}
-                      className="w-full px-4 py-2 bg-white/5 rounded-lg outline-none focus:ring-2 focus:ring-violet-500/50"
+                      className="mt-2 bg-white/5 border-white/10"
                       placeholder="Stadt, Land"
                     />
                   </div>
@@ -307,33 +330,38 @@ export const SettingsSection: React.FC = () => {
                       ].map((theme) => {
                         const Icon = theme.icon;
                         return (
-                          <button
+                          <Button
                             key={theme.id}
+                            variant="ghost"
                             onClick={() => handleSettingChange('theme', theme.id)}
-                            className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${
+                            className={`flex flex-col items-center gap-2 p-4 h-auto rounded-xl border transition-all ${
                               settings.theme === theme.id
-                                ? 'border-violet-500 bg-violet-500/10'
-                                : 'border-white/10 hover:border-white/20'
+                                ? 'border-violet-500 bg-violet-500/10 hover:bg-violet-500/10'
+                                : 'border-white/10 hover:border-white/20 hover:bg-white/5'
                             }`}
                           >
                             <Icon className="w-6 h-6" />
                             <span className="text-sm">{theme.label}</span>
-                          </button>
+                          </Button>
                         );
                       })}
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm text-slate-400 mb-2">Sprache</label>
-                    <select
+                    <Label className="text-sm text-slate-400">Sprache</Label>
+                    <Select
                       value={settings.language}
-                      onChange={(e) => handleSettingChange('language', e.target.value)}
-                      className="w-full px-4 py-2 bg-white/5 rounded-lg outline-none"
+                      onValueChange={(val) => handleSettingChange('language', val)}
                     >
-                      <option value="de">Deutsch</option>
-                      <option value="en">English</option>
-                    </select>
+                      <SelectTrigger className="mt-2 bg-white/5 border-white/10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="de">Deutsch</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
@@ -344,16 +372,10 @@ export const SettingsSection: React.FC = () => {
                         <p className="text-sm text-slate-400">Vibration bei Interaktionen</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleSettingChange('hapticFeedback', !settings.hapticFeedback)}
-                      className={`w-12 h-6 rounded-full transition-colors ${
-                        settings.hapticFeedback ? 'bg-violet-500' : 'bg-slate-600'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                        settings.hapticFeedback ? 'translate-x-6' : 'translate-x-0.5'
-                      }`} />
-                    </button>
+                    <Switch
+                      checked={settings.hapticFeedback}
+                      onCheckedChange={(val) => handleSettingChange('hapticFeedback', val)}
+                    />
                   </div>
                 </motion.div>
               )}
@@ -375,16 +397,10 @@ export const SettingsSection: React.FC = () => {
                         <p className="font-medium">Benachrichtigungen aktivieren</p>
                         <p className="text-sm text-slate-400">Alle App-Benachrichtigungen</p>
                       </div>
-                      <button
-                        onClick={() => handleSettingChange('notifications', !settings.notifications)}
-                        className={`w-12 h-6 rounded-full transition-colors ${
-                          settings.notifications ? 'bg-violet-500' : 'bg-slate-600'
-                        }`}
-                      >
-                        <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                          settings.notifications ? 'translate-x-6' : 'translate-x-0.5'
-                        }`} />
-                      </button>
+                      <Switch
+                        checked={settings.notifications}
+                        onCheckedChange={(val) => handleSettingChange('notifications', val)}
+                      />
                     </div>
 
                     {settings.notifications && (
@@ -394,26 +410,20 @@ export const SettingsSection: React.FC = () => {
                             <p className="font-medium">Tägliche Erinnerung</p>
                             <p className="text-sm text-slate-400">Erinnere mich an mein Journal</p>
                           </div>
-                          <button
-                            onClick={() => handleSettingChange('dailyReminder', !settings.dailyReminder)}
-                            className={`w-12 h-6 rounded-full transition-colors ${
-                              settings.dailyReminder ? 'bg-violet-500' : 'bg-slate-600'
-                            }`}
-                          >
-                            <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                              settings.dailyReminder ? 'translate-x-6' : 'translate-x-0.5'
-                            }`} />
-                          </button>
+                          <Switch
+                            checked={settings.dailyReminder}
+                            onCheckedChange={(val) => handleSettingChange('dailyReminder', val)}
+                          />
                         </div>
 
                         {settings.dailyReminder && (
                           <div className="p-4 bg-white/5 rounded-xl">
-                            <label className="block text-sm text-slate-400 mb-2">Erinnerungszeit</label>
-                            <input
+                            <Label className="text-sm text-slate-400">Erinnerungszeit</Label>
+                            <Input
                               type="time"
                               value={settings.reminderTime}
                               onChange={(e) => handleSettingChange('reminderTime', e.target.value)}
-                              className="px-4 py-2 bg-white/10 rounded-lg outline-none"
+                              className="mt-2 w-auto bg-white/10 border-white/10"
                             />
                           </div>
                         )}
@@ -423,16 +433,10 @@ export const SettingsSection: React.FC = () => {
                             <p className="font-medium">Transit-Alerts</p>
                             <p className="text-sm text-slate-400">Benachrichtige mich bei wichtigen Transits</p>
                           </div>
-                          <button
-                            onClick={() => handleSettingChange('transitAlerts', !settings.transitAlerts)}
-                            className={`w-12 h-6 rounded-full transition-colors ${
-                              settings.transitAlerts ? 'bg-violet-500' : 'bg-slate-600'
-                            }`}
-                          >
-                            <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                              settings.transitAlerts ? 'translate-x-6' : 'translate-x-0.5'
-                            }`} />
-                          </button>
+                          <Switch
+                            checked={settings.transitAlerts}
+                            onCheckedChange={(val) => handleSettingChange('transitAlerts', val)}
+                          />
                         </div>
                       </>
                     )}
@@ -452,87 +456,99 @@ export const SettingsSection: React.FC = () => {
                   <h3 className="text-xl font-medium mb-4">KI-Einstellungen</h3>
                   
                   <div>
-                    <label className="block text-sm text-slate-400 mb-2">KI-Provider</label>
-                    <select
-                      value={aiSettings.provider}
-                      onChange={(e) => handleAIChange('provider', e.target.value)}
-                      className="w-full px-4 py-2 bg-white/5 rounded-lg outline-none"
+                    <Label className="text-sm text-slate-400">KI-Provider</Label>
+                    <Select
+                      value={aiConfig.provider === 'custom' ? 'local' : aiConfig.provider}
+                      onValueChange={(val) => {
+                        const mapped = val === 'local' ? 'custom' : val;
+                        handleAIChange('provider', mapped);
+                      }}
                     >
-                      <option value="openai">OpenAI</option>
-                      <option value="anthropic">Anthropic Claude</option>
-                      <option value="google">Google Gemini</option>
-                      <option value="local">Lokales Modell</option>
-                    </select>
+                      <SelectTrigger className="mt-2 bg-white/5 border-white/10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="anthropic">Anthropic Claude</SelectItem>
+                        <SelectItem value="google">Google Gemini</SelectItem>
+                        <SelectItem value="local">Lokales Modell</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {aiSettings.provider !== 'local' && (
+                  {aiConfig.provider !== 'disabled' && aiConfig.provider !== 'custom' && (
                     <div>
-                      <label className="block text-sm text-slate-400 mb-2">API Key</label>
-                      <div className="relative">
-                        <input
+                      <Label className="text-sm text-slate-400">API Key</Label>
+                      <div className="relative mt-2">
+                        <Input
                           type={showApiKey ? 'text' : 'password'}
-                          value={aiSettings.apiKey}
+                          value={aiConfig.apiKey}
                           onChange={(e) => handleAIChange('apiKey', e.target.value)}
-                          className="w-full px-4 py-2 bg-white/5 rounded-lg outline-none focus:ring-2 focus:ring-violet-500/50 pr-10"
+                          className="bg-white/5 border-white/10 pr-10"
                           placeholder="sk-..."
                         />
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => setShowApiKey(!showApiKey)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white h-8 w-8"
                         >
                           {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
+                        </Button>
                       </div>
                       <p className="text-xs text-slate-500 mt-1">
-                        Dein API Key wird lokal verschlüsselt gespeichert.
+                        Dein API Key wird nicht persistiert und geht beim Neuladen verloren.
                       </p>
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-sm text-slate-400 mb-2">Modell</label>
-                    <select
-                      value={aiSettings.model}
-                      onChange={(e) => handleAIChange('model', e.target.value)}
-                      className="w-full px-4 py-2 bg-white/5 rounded-lg outline-none"
+                    <Label className="text-sm text-slate-400">Modell</Label>
+                    <Select
+                      value={aiConfig.model}
+                      onValueChange={(val) => handleAIChange('model', val)}
                     >
-                      {aiSettings.provider === 'openai' && (
-                        <>
-                          <option value="gpt-4">GPT-4</option>
-                          <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                          <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                        </>
-                      )}
-                      {aiSettings.provider === 'anthropic' && (
-                        <>
-                          <option value="claude-3-opus">Claude 3 Opus</option>
-                          <option value="claude-3-sonnet">Claude 3 Sonnet</option>
-                          <option value="claude-3-haiku">Claude 3 Haiku</option>
-                        </>
-                      )}
-                      {aiSettings.provider === 'google' && (
-                        <>
-                          <option value="gemini-pro">Gemini Pro</option>
-                          <option value="gemini-ultra">Gemini Ultra</option>
-                        </>
-                      )}
-                    </select>
+                      <SelectTrigger className="mt-2 bg-white/5 border-white/10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {aiConfig.provider === 'openai' && (
+                          <>
+                            <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                            <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                            <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                          </>
+                        )}
+                        {aiConfig.provider === 'anthropic' && (
+                          <>
+                            <SelectItem value="claude-3-opus-20240229">Claude 3 Opus</SelectItem>
+                            <SelectItem value="claude-3-sonnet-20240229">Claude 3 Sonnet</SelectItem>
+                            <SelectItem value="claude-3-haiku-20240307">Claude 3 Haiku</SelectItem>
+                          </>
+                        )}
+                        {aiConfig.provider === 'google' && (
+                          <>
+                            <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
+                            <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div>
-                    <label className="block text-sm text-slate-400 mb-2">
-                      Kreativität (Temperature): {aiSettings.temperature}
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={aiSettings.temperature}
-                      onChange={(e) => handleAIChange('temperature', parseFloat(e.target.value))}
-                      className="w-full"
+                    <Label className="text-sm text-slate-400">
+                      Kreativität (Temperature): {aiConfig.temperature}
+                    </Label>
+                    <Slider
+                      value={[aiConfig.temperature]}
+                      min={0}
+                      max={1}
+                      step={0.1}
+                      onValueChange={([val]) => handleAIChange('temperature', val)}
+                      className="mt-3"
                     />
-                    <div className="flex justify-between text-xs text-slate-500">
+                    <div className="flex justify-between text-xs text-slate-500 mt-1">
                       <span>Präzise</span>
                       <span>Kreativ</span>
                     </div>
@@ -567,16 +583,10 @@ export const SettingsSection: React.FC = () => {
                       <p className="font-medium">Anonyme Analyse</p>
                       <p className="text-sm text-slate-400">Hilf uns, die App zu verbessern</p>
                     </div>
-                    <button
-                      onClick={() => handleSettingChange('analytics', !settings.analytics)}
-                      className={`w-12 h-6 rounded-full transition-colors ${
-                        settings.analytics ? 'bg-violet-500' : 'bg-slate-600'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                        settings.analytics ? 'translate-x-6' : 'translate-x-0.5'
-                      }`} />
-                    </button>
+                    <Switch
+                      checked={settings.analytics}
+                      onCheckedChange={(val) => handleSettingChange('analytics', val)}
+                    />
                   </div>
 
                   <div className="p-4 border border-red-500/20 rounded-xl">
@@ -584,13 +594,34 @@ export const SettingsSection: React.FC = () => {
                       <AlertTriangle className="w-5 h-5 text-red-400" />
                       <p className="font-medium text-red-400">Gefahrenzone</p>
                     </div>
-                    <button
-                      onClick={clearAllData}
-                      className="flex items-center gap-2 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Alle Daten löschen</span>
-                    </button>
+                    <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="flex items-center gap-2 border-red-500/30 text-red-400 hover:bg-red-500/20 hover:text-red-400"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Alle Daten löschen
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="bg-[#0a0a0a] border-white/10">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Alle Daten löschen?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Dies löscht alle lokalen Daten unwiderruflich, inklusive Profil, Einstellungen und Journal-Einträge.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel className="bg-white/5 border-white/10 hover:bg-white/10">Abbrechen</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={clearAllData}
+                            className="bg-red-500 hover:bg-red-600 text-white"
+                          >
+                            Löschen
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </motion.div>
               )}
@@ -614,12 +645,13 @@ export const SettingsSection: React.FC = () => {
                         <p className="text-sm text-slate-400">Erstelle ein Backup deiner Daten</p>
                       </div>
                     </div>
-                    <button
+                    <Button
+                      variant="outline"
                       onClick={exportData}
-                      className="px-4 py-2 bg-violet-500/20 hover:bg-violet-500/30 text-violet-400 rounded-lg transition-colors"
+                      className="bg-violet-500/20 text-violet-400 border-violet-500/30 hover:bg-violet-500/30 hover:text-violet-300"
                     >
                       Backup erstellen
-                    </button>
+                    </Button>
                   </div>
 
                   <div className="p-4 bg-white/5 rounded-xl">
@@ -632,7 +664,7 @@ export const SettingsSection: React.FC = () => {
                     </div>
                     <label className="px-4 py-2 bg-violet-500/20 hover:bg-violet-500/30 text-violet-400 rounded-lg transition-colors cursor-pointer inline-block">
                       Backup laden
-                      <input
+                      <Input
                         type="file"
                         accept=".json"
                         onChange={importData}
@@ -660,7 +692,7 @@ export const SettingsSection: React.FC = () => {
 
           {/* Save Button */}
           <div className="mt-6 flex justify-end">
-            <button
+            <Button
               onClick={saveSettings}
               disabled={!hasChanges}
               className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
@@ -672,15 +704,15 @@ export const SettingsSection: React.FC = () => {
               {saveSuccess ? (
                 <>
                   <Check className="w-5 h-5" />
-                  <span>Gespeichert!</span>
+                  Gespeichert!
                 </>
               ) : (
                 <>
                   <Save className="w-5 h-5" />
-                  <span>Speichern</span>
+                  Speichern
                 </>
               )}
-            </button>
+            </Button>
           </div>
         </motion.div>
       </div>

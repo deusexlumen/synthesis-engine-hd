@@ -8,11 +8,13 @@
 
 use libswe_sys as swe;
 use serde::{Deserialize, Serialize};
-use std::ffi::CString;
 use std::sync::Once;
 
 static INIT: Once = Once::new();
 static mut EPHE_PATH_SET: bool = false;
+
+/// Standard-Berechnungsflag für Äquatorial-Positionen
+pub const DEFAULT_CALC_FLAG: i32 = swe::sweconst::OptionalFlag::EquatorialPosition as i32;
 
 /// Planeten-Position mit allen Details
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,26 +30,48 @@ pub struct PlanetPosition {
 /// Verfügbare Planeten und Punkte
 #[derive(Debug, Clone, Copy)]
 pub enum Planet {
-    Sun = swe::SE_SUN as isize,
-    Moon = swe::SE_MOON as isize,
-    Mercury = swe::SE_MERCURY as isize,
-    Venus = swe::SE_VENUS as isize,
-    Mars = swe::SE_MARS as isize,
-    Jupiter = swe::SE_JUPITER as isize,
-    Saturn = swe::SE_SATURN as isize,
-    Uranus = swe::SE_URANUS as isize,
-    Neptune = swe::SE_NEPTUNE as isize,
-    Pluto = swe::SE_PLUTO as isize,
-    MeanNode = swe::SE_MEAN_NODE as isize,
-    TrueNode = swe::SE_TRUE_NODE as isize,
-    MeanApogee = swe::SE_MEAN_APOGEE as isize,
-    Chiron = swe::SE_CHIRON as isize,
+    Sun,
+    Moon,
+    Mercury,
+    Venus,
+    Mars,
+    Jupiter,
+    Saturn,
+    Uranus,
+    Neptune,
+    Pluto,
+    MeanNode,
+    TrueNode,
+    MeanApogee,
+    Chiron,
+    Earth,
 }
 
 impl Planet {
+    /// Swiss Ephemeris Body für Berechnungen
+    pub fn to_swe_body(&self) -> swe::sweconst::Bodies {
+        match self {
+            Planet::Sun => swe::sweconst::Bodies::Sun,
+            Planet::Moon => swe::sweconst::Bodies::Moon,
+            Planet::Mercury => swe::sweconst::Bodies::Mercury,
+            Planet::Venus => swe::sweconst::Bodies::Venus,
+            Planet::Mars => swe::sweconst::Bodies::Mars,
+            Planet::Jupiter => swe::sweconst::Bodies::Jupiter,
+            Planet::Saturn => swe::sweconst::Bodies::Saturn,
+            Planet::Uranus => swe::sweconst::Bodies::Uranus,
+            Planet::Neptune => swe::sweconst::Bodies::Neptune,
+            Planet::Pluto => swe::sweconst::Bodies::Pluto,
+            Planet::MeanNode => swe::sweconst::Bodies::MeanNode,
+            Planet::TrueNode => swe::sweconst::Bodies::TrueNode,
+            Planet::MeanApogee => swe::sweconst::Bodies::MeanApog,
+            Planet::Chiron => swe::sweconst::Bodies::Chiron,
+            Planet::Earth => swe::sweconst::Bodies::Earth,
+        }
+    }
+
     /// Swiss Ephemeris ID für Berechnungen
     pub fn to_swe_id(&self) -> i32 {
-        *self as i32
+        self.to_swe_body() as i32
     }
     
     /// Human-Readable Name
@@ -67,6 +91,7 @@ impl Planet {
             Planet::TrueNode => "NORTH_NODE_TRUE",
             Planet::MeanApogee => "LILITH",
             Planet::Chiron => "CHIRON",
+            Planet::Earth => "EARTH",
         }
     }
 }
@@ -103,39 +128,40 @@ pub enum Calendar {
 /// Diese Funktion ist thread-safe durch `std::sync::Once`
 pub fn init_ephemeris(ephe_path: Option<&str>) -> Result<(), EphemerisError> {
     INIT.call_once(|| {
-        unsafe {
-            if let Some(path) = ephe_path {
-                // Verwende komprimierte Ephemeris-Dateien
-                match CString::new(path) {
-                    Ok(c_path) => {
-                        swe::swe_set_ephe_path(c_path.as_ptr());
-                        EPHE_PATH_SET = true;
-                        
-                        // Versions-Info ausgeben
-                        let version = get_version();
-                        eprintln!("✓ Swiss Ephemeris v{} initialisiert", version);
-                        eprintln!("  Ephemeris-Pfad: {}", path);
-                        
-                        // Prüfe ob Dateien gefunden wurden
-                        if !check_ephemeris_files(path) {
-                            eprintln!("  ⚠️ WARNUNG: Keine .se1 Dateien im Pfad gefunden!");
-                            eprintln!("  Verwende Moshier-Formeln (weniger genau)");
-                        } else {
-                            eprintln!("  ✓ .se1 Ephemeris-Dateien gefunden");
-                        }
-                    }
-                    Err(_) => {
-                        eprintln!("  ⚠️ Ungültiger Pfad, verwende Moshier-Formeln");
-                        swe::swe_set_ephe_path(std::ptr::null());
-                        EPHE_PATH_SET = false;
-                    }
+        if let Some(path) = ephe_path {
+            // Verwende komprimierte Ephemeris-Dateien
+            if path.is_empty() {
+                swe::swerust::handler_swe02::set_ephe_path("");
+                unsafe {
+                    EPHE_PATH_SET = false;
                 }
-            } else {
-                // Moshier fallback
-                swe::swe_set_ephe_path(std::ptr::null());
-                EPHE_PATH_SET = false;
                 eprintln!("  ⚠️ Keine Ephemeris-Pfad angegeben - verwende Moshier-Formeln (±0.1°)");
+            } else {
+                swe::swerust::handler_swe02::set_ephe_path(path);
+                unsafe {
+                    EPHE_PATH_SET = true;
+                }
+                
+                // Versions-Info ausgeben
+                let version = get_version();
+                eprintln!("✓ Swiss Ephemeris v{} initialisiert", version);
+                eprintln!("  Ephemeris-Pfad: {}", path);
+                
+                // Prüfe ob Dateien gefunden wurden
+                if !check_ephemeris_files(path) {
+                    eprintln!("  ⚠️ WARNUNG: Keine .se1 Dateien im Pfad gefunden!");
+                    eprintln!("  Verwende Moshier-Formeln (weniger genau)");
+                } else {
+                    eprintln!("  ✓ .se1 Ephemeris-Dateien gefunden");
+                }
             }
+        } else {
+            // Moshier fallback
+            swe::swerust::handler_swe02::set_ephe_path("");
+            unsafe {
+                EPHE_PATH_SET = false;
+            }
+            eprintln!("  ⚠️ Keine Ephemeris-Pfad angegeben - verwende Moshier-Formeln (±0.1°)");
         }
     });
     Ok(())
@@ -157,12 +183,7 @@ fn check_ephemeris_files(path: &str) -> bool {
 
 /// Gibt die Swiss Ephemeris Version zurück
 pub fn get_version() -> String {
-    unsafe {
-        let mut version = [0i8; 256];
-        swe::swe_version(version.as_mut_ptr());
-        let c_str = std::ffi::CStr::from_ptr(version.as_ptr());
-        c_str.to_string_lossy().into_owned()
-    }
+    swe::swerust::handler_swe02::version()
 }
 
 /// Prüft ob Ephemeris-Dateien verwendet werden (statt Moshier)
@@ -190,14 +211,12 @@ pub fn julian_day(
     calendar: Calendar,
 ) -> f64 {
     let hour_f64 = hour as f64 + minute as f64 / 60.0 + second / 3600.0;
-    let gregflag = match calendar {
-        Calendar::Gregorian => swe::SE_GREG_CAL as i32,
-        Calendar::Julian => swe::SE_JUL_CAL as i32,
+    let cal = match calendar {
+        Calendar::Gregorian => swe::sweconst::Calandar::Gregorian,
+        Calendar::Julian => swe::sweconst::Calandar::Julian,
     };
     
-    unsafe {
-        swe::swe_julday(year, month, day, hour_f64, gregflag)
-    }
+    swe::swerust::handler_swe08::julday(year, month, day, hour_f64, cal)
 }
 
 /// Berechnet die Position eines Planeten
@@ -205,7 +224,7 @@ pub fn julian_day(
 /// # Arguments
 /// * `jd` - Julian Day Number (UT)
 /// * `planet` - Der zu berechnende Planet
-/// * `iflag` - Berechnungsflags (siehe SE_EQUATORIAL, SE_HELIOCTR, etc.)
+/// * `iflag` - Berechnungsflags (siehe OptionalFlag::EquatorialPosition, etc.)
 ///
 /// # Returns
 /// * `PlanetPosition` mit Longitude, Latitude, Distance und Geschwindigkeiten
@@ -217,31 +236,22 @@ pub fn calculate_planet(
     planet: Planet,
     iflag: i32,
 ) -> Result<PlanetPosition, EphemerisError> {
-    let mut xx: [f64; 6] = [0.0; 6];
-    let mut serr: [i8; 256] = [0; 256];
-    
-    let result = unsafe {
-        swe::swe_calc_ut(jd, planet.to_swe_id(), iflag, xx.as_mut_ptr(), serr.as_mut_ptr())
-    };
+    let result = swe::swerust::handler_swe03::calc_ut(jd, planet.to_swe_body(), iflag);
     
     // Prüfe auf Fehler
-    if result < 0 {
-        let error_msg = unsafe {
-            let c_str = std::ffi::CStr::from_ptr(serr.as_ptr());
-            c_str.to_string_lossy().into_owned()
-        };
+    if result.status < 0 {
         return Err(EphemerisError {
-            message: format!("Calculation failed for {}: {}", planet.name(), error_msg),
+            message: format!("Calculation failed for {}: {}", planet.name(), result.serr),
         });
     }
     
     Ok(PlanetPosition {
-        longitude: xx[0],
-        latitude: xx[1],
-        distance: xx[2],
-        longitude_speed: xx[3],
-        latitude_speed: xx[4],
-        distance_speed: xx[5],
+        longitude: result.longitude,
+        latitude: result.latitude,
+        distance: result.distance_au,
+        longitude_speed: result.speed_longitude,
+        latitude_speed: result.speed_latitude,
+        distance_speed: result.speed_distance_au,
     })
 }
 
@@ -254,7 +264,7 @@ pub fn calculate_planet(
 /// # Returns
 /// * `Vec<(Planet, PlanetPosition)>` mit allen berechneten Planeten
 pub fn calculate_all_planets(jd: f64, include_outer: bool) -> Result<Vec<(Planet, PlanetPosition)>, EphemerisError> {
-    let iflag = swe::SE_EQUATORIAL as i32;
+    let iflag = DEFAULT_CALC_FLAG;
     
     let mut planets = vec![
         Planet::Sun,
@@ -286,6 +296,21 @@ pub fn calculate_all_planets(jd: f64, include_outer: bool) -> Result<Vec<(Planet
         }
     }
     
+    // EARTH is 180° opposite the SUN
+    if let Some((_, sun_pos)) = results.iter().find(|(p, _)| matches!(p, Planet::Sun)) {
+        results.push((
+            Planet::Earth,
+            PlanetPosition {
+                longitude: (sun_pos.longitude + 180.0) % 360.0,
+                latitude: -sun_pos.latitude,
+                distance: sun_pos.distance,
+                longitude_speed: sun_pos.longitude_speed,
+                latitude_speed: sun_pos.latitude_speed,
+                distance_speed: sun_pos.distance_speed,
+            },
+        ));
+    }
+    
     Ok(results)
 }
 
@@ -294,18 +319,50 @@ pub fn calculate_all_planets(jd: f64, include_outer: bool) -> Result<Vec<(Planet
 /// Für Human Design benötigen wir:
 /// - Personality: Positionen zum Zeitpunkt der Geburt
 /// - Design: Positionen ~88° vor der Geburt (Sonne)
+///
+/// Die Design-Phase wird iterativ berechnet: Wir suchen den Julian Day,
+/// an dem die Sonne exakt 88° vor der Geburts-Sonne steht.
 pub fn calculate_hd_moments(
     birth_jd: f64,
     include_outer: bool,
 ) -> Result<(Vec<(Planet, PlanetPosition)>, Vec<(Planet, PlanetPosition)>), EphemerisError> {
-    // Design-Phase: ~88 Tage vor der Geburt (Sonne bewegt sich ~1° pro Tag)
-    // Dies ist eine Annäherung - die exakte Berechnung erfolgt später
-    let design_offset = 88.0; // Tage
-    let design_jd = birth_jd - design_offset;
-    
+    let iflag = DEFAULT_CALC_FLAG;
+
+    // 1. Sonnen-Longitude zur Geburt
+    let birth_sun = calculate_planet(birth_jd, Planet::Sun, iflag)?;
+    let birth_sun_lon = birth_sun.longitude;
+
+    // 2. Iterativ: Finde den JD, an dem die Sonne 88° vor birth_sun_lon steht
+    // Die Sonne bewegt sich mit ~0.9856°/Tag. Starte mit einer groben Schätzung.
+    let mut design_jd = birth_jd - 89.0; // Grobe Schätzung (etwas mehr als 88)
+    const TARGET_ARC: f64 = 88.0;
+    const TOLERANCE: f64 = 0.001; // 0.001° Toleranz
+    const MAX_ITER: usize = 20;
+
+    for _ in 0..MAX_ITER {
+        let design_sun = calculate_planet(design_jd, Planet::Sun, iflag)?;
+        let diff = (birth_sun_lon - design_sun.longitude).rem_euclid(360.0);
+        let error = diff - TARGET_ARC;
+
+        if error.abs() < TOLERANCE {
+            break;
+        }
+
+        // Newton-Schritt: dt = d_lon / speed
+        // Die Geschwindigkeit ist in deg/day, kann negativ sein (Rückläufigkeit ist hier nicht relevant)
+        let speed = design_sun.longitude_speed;
+        if speed.abs() < 0.01 {
+            // Falls die Geschwindigkeit zu klein ist (extrem unwahrscheinlich für die Sonne),
+            // verwende den Durchschnittswert
+            design_jd -= error / 0.9856;
+        } else {
+            design_jd -= error / speed;
+        }
+    }
+
     let personality = calculate_all_planets(birth_jd, include_outer)?;
     let design = calculate_all_planets(design_jd, include_outer)?;
-    
+
     Ok((design, personality))
 }
 
@@ -368,9 +425,7 @@ pub fn calculate_hd_details(longitude: f64) -> (i32, i32, i32, i32) {
 
 /// Bereinigt die Ephemeris-Ressourcen beim Programmende
 pub fn close_ephemeris() {
-    unsafe {
-        swe::swe_close();
-    }
+    swe::swerust::handler_swe02::close();
 }
 
 /// Findet den besten verfügbaren Ephemeris-Pfad
@@ -479,7 +534,7 @@ mod tests {
         init();
         
         let jd = julian_day(2000, 1, 1, 12, 0, 0.0, Calendar::Gregorian);
-        let sun = calculate_planet(jd, Planet::Sun, swe::SE_EQUATORIAL as i32).unwrap();
+        let sun = calculate_planet(jd, Planet::Sun, DEFAULT_CALC_FLAG).unwrap();
         
         // Sonne am 1.1.2000 um 12:00 UT sollte etwa bei 280° sein
         assert!(sun.longitude > 279.0 && sun.longitude < 281.0,
@@ -513,7 +568,7 @@ mod tests {
         init();
         
         let jd = julian_day(2000, 1, 1, 12, 0, 0.0, Calendar::Gregorian);
-        let moon = calculate_planet(jd, Planet::Moon, swe::SE_EQUATORIAL as i32).unwrap();
+        let moon = calculate_planet(jd, Planet::Moon, DEFAULT_CALC_FLAG).unwrap();
         
         // Mond sollte eine valide Position haben
         assert!(moon.longitude >= 0.0 && moon.longitude <= 360.0);
@@ -526,7 +581,7 @@ mod tests {
         
         // Berechne Merkur (häufig retrograd)
         let jd = julian_day(2020, 1, 1, 12, 0, 0.0, Calendar::Gregorian);
-        let mercury = calculate_planet(jd, Planet::Mercury, swe::SE_EQUATORIAL as i32).unwrap();
+        let mercury = calculate_planet(jd, Planet::Mercury, DEFAULT_CALC_FLAG).unwrap();
         
         // Geschwindigkeit sollte vorhanden sein
         // Positiv = direkt, Negativ = retrograd

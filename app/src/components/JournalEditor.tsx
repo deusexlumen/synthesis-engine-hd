@@ -1,10 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invokeSafe, isTauri } from '@/lib/tauri';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Save, Lock, Unlock, Trash2, Calendar, Clock,
   ChevronLeft, MoreVertical, Sparkles, Shield
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface JournalEntry {
   id: string;
@@ -58,6 +71,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   const [newTag, setNewTag] = useState('');
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
     const words = content.trim().split(/\s+/).filter(w => w.length > 0).length;
@@ -84,11 +98,24 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         lastModified: new Date().toISOString(),
       };
 
-      // Encrypt and save via Tauri
-      await invoke('save_journal_entry', {
-        entryId: entryData.id,
-        content: JSON.stringify(entryData),
-      });
+      if (isTauri()) {
+        // Encrypt and save via Tauri
+        await invokeSafe('save_journal_entry', {
+          entryId: entryData.id,
+          content: JSON.stringify(entryData),
+        });
+      } else {
+        // Web fallback: store in localStorage
+        const stored = localStorage.getItem('synthesis_journal_entries');
+        const entries: JournalEntry[] = stored ? JSON.parse(stored) : [];
+        const idx = entries.findIndex(e => e.id === entryData.id);
+        if (idx >= 0) {
+          entries[idx] = entryData;
+        } else {
+          entries.push(entryData);
+        }
+        localStorage.setItem('synthesis_journal_entries', JSON.stringify(entries));
+      }
 
       setLastSaved(new Date());
       onSave(entryData);
@@ -102,17 +129,22 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
 
   const handleDelete = async () => {
     if (!entry?.id) return;
-    
-    if (confirm('Möchtest du diesen Eintrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
-      try {
-        await invoke('delete_journal_entry_command', {
+    setShowDeleteDialog(false);
+    try {
+      if (isTauri()) {
+        await invokeSafe('delete_journal_entry_command', {
           entryId: entry.id,
         });
-        onDelete?.(entry.id);
-      } catch (error) {
-        console.error('Failed to delete entry:', error);
-        alert('Fehler beim Löschen. Bitte versuche es erneut.');
+      } else {
+        const stored = localStorage.getItem('synthesis_journal_entries');
+        const entries: JournalEntry[] = stored ? JSON.parse(stored) : [];
+        const filtered = entries.filter(e => e.id !== entry.id);
+        localStorage.setItem('synthesis_journal_entries', JSON.stringify(filtered));
       }
+      onDelete?.(entry.id);
+    } catch (error) {
+      console.error('Failed to delete entry:', error);
+      alert('Fehler beim Löschen. Bitte versuche es erneut.');
     }
   };
 
@@ -149,19 +181,16 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <button
-            onClick={onCancel}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          >
+          <Button variant="ghost" size="icon" onClick={onCancel} className="hover:bg-white/10">
             <ChevronLeft className="w-5 h-5" />
-          </button>
+          </Button>
           <div>
-            <input
+            <Input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Titel deines Eintrags..."
-              className="bg-transparent text-lg font-medium placeholder-slate-500 outline-none w-64"
+              className="bg-transparent text-lg font-medium placeholder-slate-500 border-0 shadow-none focus-visible:ring-0 w-64 px-0"
             />
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <Calendar className="w-3 h-3" />
@@ -188,22 +217,40 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           </div>
           
           {entry?.id && onDelete && (
-            <button
-              onClick={handleDelete}
-              className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"
-            >
-              <Trash2 className="w-5 h-5" />
-            </button>
+            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="hover:bg-red-500/20 text-red-400">
+                  <Trash2 className="w-5 h-5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-[#0a0a0a] border-white/10">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Eintrag löschen?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Möchtest du diesen Eintrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-white/5 border-white/10 hover:bg-white/10">Abbrechen</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    className="bg-red-500 hover:bg-red-600 text-white"
+                  >
+                    Löschen
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
-          
-          <button
+
+          <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 disabled:opacity-50 rounded-lg transition-colors"
+            className="flex items-center gap-2 bg-violet-500 hover:bg-violet-600 disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
-            <span>{isSaving ? 'Speichert...' : 'Speichern'}</span>
-          </button>
+            {isSaving ? 'Speichert...' : 'Speichern'}
+          </Button>
         </div>
       </div>
 
@@ -246,7 +293,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           ))}
           
           {showTagInput ? (
-            <input
+            <Input
               type="text"
               value={newTag}
               onChange={(e) => setNewTag(e.target.value)}
@@ -257,7 +304,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
               onBlur={() => addTag(newTag)}
               placeholder="Neuer Tag..."
               autoFocus
-              className="px-2 py-1 bg-white/10 rounded text-sm outline-none"
+              className="w-auto px-2 py-1 h-7 bg-white/10 border-white/10 rounded text-sm"
             />
           ) : (
             <button

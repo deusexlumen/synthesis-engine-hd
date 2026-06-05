@@ -13,6 +13,17 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { 
   Brain, 
   Key, 
@@ -46,6 +57,7 @@ export function AISettings() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
+  const [showResetDialog, setShowResetDialog] = useState(false);
 
   const handleTestConnection = async () => {
     if (!isConfigured()) {
@@ -80,10 +92,9 @@ export function AISettings() {
   };
 
   const handleReset = () => {
-    if (confirm('Möchtest du wirklich alle KI-Einstellungen zurücksetzen?')) {
-      reset();
-      toast.info('KI-Einstellungen zurückgesetzt');
-    }
+    setShowResetDialog(false);
+    reset();
+    toast.info('KI-Einstellungen zurückgesetzt');
   };
 
   return (
@@ -276,13 +287,33 @@ export function AISettings() {
                         </>
                       )}
                     </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleReset}
-                      className="border-white/10 hover:bg-white/5 h-12 rounded-xl px-4"
-                    >
-                      Zurücksetzen
-                    </Button>
+                    <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="border-white/10 hover:bg-white/5 h-12 rounded-xl px-4"
+                        >
+                          Zurücksetzen
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="bg-[#0a0a0a] border-white/10">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>KI-Einstellungen zurücksetzen?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Möchtest du wirklich alle KI-Einstellungen zurücksetzen? Dein API-Key und alle Konfigurationen werden gelöscht.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel className="bg-white/5 border-white/10 hover:bg-white/10">Abbrechen</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleReset}
+                            className="bg-red-500 hover:bg-red-600 text-white"
+                          >
+                            Zurücksetzen
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
 
                   {/* Test Result */}
@@ -386,7 +417,7 @@ async function testAIConnection(config: {
   try {
     let url: string;
     let headers: Record<string, string>;
-    let body: any;
+    let body: Record<string, unknown>;
 
     switch (config.provider) {
       case 'openai':

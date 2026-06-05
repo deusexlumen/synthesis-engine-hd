@@ -1,6 +1,7 @@
 /**
- * Onboarding Flow with API Integration
- * OPTIMIZED: Performance, error handling, accessibility
+ * Onboarding Flow
+ * FIXED: Step content rendered inline (no component re-creation) to prevent focus loss
+ * IMPROVED: Clearer labels and examples for each input field
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -15,8 +16,6 @@ import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 // NOTE: HD calculations are done locally via Tauri (desktop) or JS fallback (web)
 // Birth data is NEVER sent to any backend server for privacy protection
-import { toast } from '@/components/Toast';
-import { OnboardingStepSkeleton } from '@/components/Skeleton';
 import { useAppStore } from '@/stores/appStore';
 import { validateBirthDate, validateName } from '@/lib/millmanCalculations';
 import type { GeocodeResult, BirthData } from '@/types/humanDesign';
@@ -30,6 +29,7 @@ import {
   Check,
   AlertCircle,
   Search,
+  Info,
 } from 'lucide-react';
 
 // ============================================================================
@@ -109,7 +109,6 @@ export function OnboardingFlow() {
     }
 
     const timeoutId = setTimeout(async () => {
-      // Cancel previous search
       if (searchAbortRef.current) {
         searchAbortRef.current.abort();
       }
@@ -201,7 +200,6 @@ export function OnboardingFlow() {
       country: selectedLocation.country,
     };
 
-    // Store user data locally — birth data NEVER leaves the device
     const userData = {
       fullName: birthData.name,
       birthDate: birthData.birthDate,
@@ -209,7 +207,7 @@ export function OnboardingFlow() {
       birthPlace: selectedLocation.name,
       latitude: birthData.latitude,
       longitude: birthData.longitude,
-      timezone: timezone, // IANA timezone string
+      timezone: timezone,
     };
 
     setUserData(userData);
@@ -218,225 +216,248 @@ export function OnboardingFlow() {
   }, [birthDate, selectedLocation, name, birthTime, timezone, setUserData, setStep]);
 
   // ============================================================================
-  // STEP COMPONENTS
+  // STEP CONTENT — Rendered inline (NOT as components) to prevent focus loss
   // ============================================================================
 
-  const WelcomeStep = () => (
-    <div className="text-center space-y-6">
-      <motion.div
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20"
-      >
-        <span className="text-4xl">✨</span>
-      </motion.div>
-      <div>
-        <h2 className="text-2xl font-bold text-white mb-2">Willkommen bei Synthesis Engine</h2>
-        <p className="text-white/60 max-w-md mx-auto">
-          Entdecke dein einzigartiges Human Design mit professioneller Präzision. Wir nutzen NASA
-          JPL Ephemeris-Daten für höchste Genauigkeit.
-        </p>
-      </div>
-      <div className="flex justify-center gap-6 text-sm text-white/40">
-        <span className="flex items-center gap-2">
-          <Check className="w-4 h-4 text-emerald-400" />±0.0001° Genauigkeit
-        </span>
-        <span className="flex items-center gap-2">
-          <Check className="w-4 h-4 text-emerald-400" />
-          100% Privat
-        </span>
-      </div>
-    </div>
-  );
-
-  const NameStep = () => (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-xl font-bold text-white mb-2">Wie heißt du?</h2>
-        <p className="text-white/60">Dein Name wird in deinem persönlichen Chart angezeigt</p>
-      </div>
-      <div className="relative">
-        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Dein Name"
-          className="pl-10 h-14 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-purple-500/50"
-          maxLength={50}
-          autoFocus
-          aria-invalid={!nameValidation.valid && name.length > 0}
-          aria-describedby={!nameValidation.valid && name.length > 0 ? 'name-error' : undefined}
-        />
-      </div>
-      {!nameValidation.valid && name.length > 0 && (
-        <p id="name-error" className="text-sm text-red-400 flex items-center gap-1" role="alert">
-          <AlertCircle className="w-4 h-4" />
-          {nameValidation.error}
-        </p>
-      )}
-    </div>
-  );
-
-  const BirthdateStep = () => (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-xl font-bold text-white mb-2">Wann bist du geboren?</h2>
-        <p className="text-white/60">Wähle dein Geburtsdatum</p>
-      </div>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn(
-              'w-full h-14 justify-start text-left font-normal bg-white/5 border-white/10 hover:bg-white/10',
-              !birthDate && 'text-white/40'
-            )}
-          >
-            <CalendarIcon className="mr-3 h-5 w-5 text-white/40" />
-            {birthDate ? format(birthDate, 'PPP', { locale: de }) : <span>Datum wählen</span>}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 bg-black/90 border-white/10" align="center">
-          <Calendar
-            mode="single"
-            selected={birthDate}
-            onSelect={setBirthDate}
-            initialFocus
-            defaultMonth={new Date(1990, 0)}
-            fromYear={1900}
-            toYear={new Date().getFullYear()}
-            locale={de}
-            className="bg-transparent"
-          />
-        </PopoverContent>
-      </Popover>
-      {!dateValidation.valid && birthDate && (
-        <p className="text-sm text-red-400 flex items-center gap-1" role="alert">
-          <AlertCircle className="w-4 h-4" />
-          {dateValidation.error}
-        </p>
-      )}
-    </div>
-  );
-
-  const BirthtimeStep = () => (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-xl font-bold text-white mb-2">Um welche Uhrzeit?</h2>
-        <p className="text-white/60">Die genaue Uhrzeit ist wichtig für dein Design</p>
-      </div>
-      <div className="relative">
-        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-        <Input
-          type="time"
-          value={birthTime}
-          onChange={(e) => setBirthTime(e.target.value)}
-          className="pl-10 h-14 bg-white/5 border-white/10 text-white [color-scheme:dark] focus:border-purple-500/50"
-        />
-      </div>
-      <p className="text-sm text-white/40 text-center">
-        Tipp: Schätzungen sind okay, aber je genauer desto besser
-      </p>
-    </div>
-  );
-
-  const BirthplaceStep = () => (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-xl font-bold text-white mb-2">Wo bist du geboren?</h2>
-        <p className="text-white/60">Suche nach deinem Geburtsort</p>
-      </div>
-      <div className="relative">
-        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-        <Input
-          value={locationQuery}
-          onChange={(e) => setLocationQuery(e.target.value)}
-          placeholder="z.B. Berlin, Deutschland"
-          className="pl-10 h-14 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-purple-500/50"
-          autoComplete="off"
-        />
-        {isSearching && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-          </div>
-        )}
-        {!isSearching && locationQuery && (
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
-        )}
-      </div>
-
-      {/* Location Results */}
-      {locationResults.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-2 max-h-48 overflow-y-auto rounded-xl bg-white/5 border border-white/10 p-2"
-        >
-          {locationResults.map((location, i) => (
-            <button
-              key={`${location.name}-${i}`}
-              onClick={() => {
-                setSelectedLocation(location);
-                setLocationQuery(location.name);
-                setLocationResults([]);
-              }}
-              className={cn(
-                'w-full p-3 rounded-lg text-left transition-all',
-                selectedLocation?.name === location.name
-                  ? 'bg-purple-500/20 border border-purple-500/30'
-                  : 'hover:bg-white/5'
-              )}
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 'welcome':
+        return (
+          <div className="text-center space-y-6">
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20"
             >
-              <p className="text-sm text-white truncate">{location.name}</p>
-              <p className="text-xs text-white/40">
-                {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+              <span className="text-4xl">✨</span>
+            </motion.div>
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-2">Willkommen bei Synthesis Engine</h2>
+              <p className="text-white/60 max-w-md mx-auto">
+                Entdecke dein einzigartiges Human Design mit professioneller Präzision.
+                Wir nutzen NASA JPL Ephemeris-Daten für höchste Genauigkeit.
               </p>
-            </button>
-          ))}
-        </motion.div>
-      )}
+            </div>
+            <div className="flex justify-center gap-6 text-sm text-white/40">
+              <span className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-400" />±0.0001° Genauigkeit
+              </span>
+              <span className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-400" />
+                100% Privat
+              </span>
+            </div>
+          </div>
+        );
 
-      {timezone && (
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-sm text-emerald-400 text-center"
-        >
-          Zeitzone erkannt: {timezone}
-        </motion.p>
-      )}
-    </div>
-  );
+      case 'name':
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-white mb-2">Wie heißt du?</h2>
+              <p className="text-white/60">Dein Name wird in deinem persönlichen Chart angezeigt</p>
+            </div>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="z.B. Max Mustermann"
+                className="pl-10 h-14 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-purple-500/50"
+                maxLength={50}
+                autoFocus
+                aria-invalid={!nameValidation.valid && name.length > 0}
+                aria-describedby={!nameValidation.valid && name.length > 0 ? 'name-error' : undefined}
+              />
+            </div>
+            {!nameValidation.valid && name.length > 0 && (
+              <p id="name-error" className="text-sm text-red-400 flex items-center gap-1" role="alert">
+                <AlertCircle className="w-4 h-4" />
+                {nameValidation.error}
+              </p>
+            )}
+          </div>
+        );
 
-  const ConfirmStep = () => (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-xl font-bold text-white mb-2">Überprüfe deine Daten</h2>
-        <p className="text-white/60">Stimmen diese Informationen?</p>
-      </div>
-      <div className="p-6 rounded-xl bg-white/5 border border-white/10 space-y-4">
-        <DataRow label="Name" value={name} />
-        <DataRow
-          label="Geburtsdatum"
-          value={birthDate ? format(birthDate, 'PPP', { locale: de }) : '-'}
-        />
-        <DataRow label="Uhrzeit" value={birthTime || '12:00'} />
-        <DataRow
-          label="Ort"
-          value={selectedLocation?.name || '-'}
-          truncate
-        />
-        <DataRow
-          label="Koordinaten"
-          value={
-            selectedLocation
-              ? `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`
-              : '-'
-          }
-        />
-      </div>
-    </div>
-  );
+      case 'birthdate':
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-white mb-2">Wann bist du geboren?</h2>
+              <p className="text-white/60">Wähle dein Geburtsdatum aus dem Kalender</p>
+            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    'w-full h-14 justify-start text-left font-normal bg-white/5 border-white/10 hover:bg-white/10',
+                    !birthDate && 'text-white/40'
+                  )}
+                >
+                  <CalendarIcon className="mr-3 h-5 w-5 text-white/40" />
+                  {birthDate ? format(birthDate, 'PPP', { locale: de }) : <span>Datum auswählen...</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 bg-black/90 border-white/10" align="center">
+                <Calendar
+                  mode="single"
+                  selected={birthDate}
+                  onSelect={setBirthDate}
+                  initialFocus
+                  defaultMonth={new Date(1990, 0)}
+                  fromYear={1900}
+                  toYear={new Date().getFullYear()}
+                  locale={de}
+                  className="bg-transparent"
+                />
+              </PopoverContent>
+            </Popover>
+            <div className="flex items-start gap-2 text-sm text-white/40">
+              <Info className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>Die exakten Koordinaten deines Geburtsorts werden später für die Berechnung benötigt.</span>
+            </div>
+            {!dateValidation.valid && birthDate && (
+              <p className="text-sm text-red-400 flex items-center gap-1" role="alert">
+                <AlertCircle className="w-4 h-4" />
+                {dateValidation.error}
+              </p>
+            )}
+          </div>
+        );
+
+      case 'birthtime':
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-white mb-2">Um welche Uhrzeit bist du geboren?</h2>
+              <p className="text-white/60">Die genaue Uhrzeit ist entscheidend für dein Human Design</p>
+            </div>
+            <div className="relative">
+              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+              <Input
+                type="time"
+                value={birthTime}
+                onChange={(e) => setBirthTime(e.target.value)}
+                placeholder="14:30"
+                className="pl-10 h-14 bg-white/5 border-white/10 text-white [color-scheme:dark] focus:border-purple-500/50"
+              />
+            </div>
+            <div className="flex items-start gap-2 text-sm text-white/40">
+              <Info className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>
+                Tipp: Schätzungen sind okay, aber je genauer desto präziser dein Chart.
+                Frage ggf. deine Eltern oder schau in deine Geburtsurkunde.
+              </span>
+            </div>
+          </div>
+        );
+
+      case 'birthplace':
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-white mb-2">Wo bist du geboren?</h2>
+              <p className="text-white/60">Gib deinen Geburtsort ein (Stadt, Land)</p>
+            </div>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+              <Input
+                value={locationQuery}
+                onChange={(e) => setLocationQuery(e.target.value)}
+                placeholder="z.B. Berlin, Deutschland"
+                className="pl-10 h-14 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-purple-500/50"
+                autoComplete="off"
+                autoFocus
+              />
+              {isSearching && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+                </div>
+              )}
+              {!isSearching && locationQuery && (
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
+              )}
+            </div>
+
+            {/* Location Results */}
+            {locationResults.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-2 max-h-48 overflow-y-auto rounded-xl bg-white/5 border border-white/10 p-2"
+              >
+                {locationResults.map((location, i) => (
+                  <button
+                    key={`${location.name}-${i}`}
+                    onClick={() => {
+                      setSelectedLocation(location);
+                      setLocationQuery(location.name);
+                      setLocationResults([]);
+                    }}
+                    className={cn(
+                      'w-full p-3 rounded-lg text-left transition-all',
+                      selectedLocation?.name === location.name
+                        ? 'bg-purple-500/20 border border-purple-500/30'
+                        : 'hover:bg-white/5'
+                    )}
+                  >
+                    <p className="text-sm text-white truncate">{location.name}</p>
+                    <p className="text-xs text-white/40">
+                      {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                    </p>
+                  </button>
+                ))}
+              </motion.div>
+            )}
+
+            {timezone && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-sm text-emerald-400 text-center"
+              >
+                ✓ Zeitzone erkannt: {timezone}
+              </motion.p>
+            )}
+          </div>
+        );
+
+      case 'confirm':
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-white mb-2">Überprüfe deine Daten</h2>
+              <p className="text-white/60">Stimmen diese Informationen?</p>
+            </div>
+            <div className="p-6 rounded-xl bg-white/5 border border-white/10 space-y-4">
+              <DataRow label="Name" value={name} />
+              <DataRow
+                label="Geburtsdatum"
+                value={birthDate ? format(birthDate, 'PPP', { locale: de }) : '-'}
+              />
+              <DataRow label="Uhrzeit" value={birthTime || '12:00'} />
+              <DataRow
+                label="Ort"
+                value={selectedLocation?.name || '-'}
+                truncate
+              />
+              <DataRow
+                label="Koordinaten"
+                value={
+                  selectedLocation
+                    ? `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`
+                    : '-'
+                }
+              />
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   // ============================================================================
   // RENDER
@@ -445,7 +466,10 @@ export function OnboardingFlow() {
   if (isSubmitting) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <OnboardingStepSkeleton />
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 mx-auto border-2 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
+          <p className="text-white/60">Dein Chart wird berechnet...</p>
+        </div>
       </div>
     );
   }
@@ -479,12 +503,7 @@ export function OnboardingFlow() {
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3, ease: 'easeInOut' }}
         >
-          {currentStep === 'welcome' && <WelcomeStep />}
-          {currentStep === 'name' && <NameStep />}
-          {currentStep === 'birthdate' && <BirthdateStep />}
-          {currentStep === 'birthtime' && <BirthtimeStep />}
-          {currentStep === 'birthplace' && <BirthplaceStep />}
-          {currentStep === 'confirm' && <ConfirmStep />}
+          {renderStepContent()}
         </motion.div>
       </AnimatePresence>
 

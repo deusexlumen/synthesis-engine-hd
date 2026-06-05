@@ -1,0 +1,283 @@
+- generic [active] [ref=e1]:
+  - 'heading "BUXE_OS v24.X — Synthesis Engine: Projektübersicht" [level=1] [ref=e2]'
+  - blockquote [ref=e3]:
+    - paragraph [ref=e4]: "Stand: Juni 2026 | Für interne Demo & Kollegen-Besprechung"
+  - separator [ref=e5]
+  - heading "1. Was ist Synthesis Engine?" [level=2] [ref=e6]
+  - paragraph [ref=e7]:
+    - text: Eine Full-Stack-Anwendung zur Synthese von
+    - strong [ref=e8]: Human Design
+    - text: ","
+    - strong [ref=e9]: Gene Keys
+    - text: und
+    - strong [ref=e10]: Dan Millman Numerologie
+    - text: — mit KI-gestützter Kreuzkorrelationsanalyse.
+  - paragraph [ref=e11]:
+    - strong [ref=e12]: "Kernidee:"
+    - text: Der Nutzer gibt seine Geburtsdaten ein und bekommt eine personalisierte, ganzheitliche Analyse, die drei spirituelle/psychoanalytische Systeme in einem Dashboard vereint.
+  - separator [ref=e13]
+  - heading "2. Aktueller Funktionsumfang (Desktop-App)" [level=2] [ref=e14]
+  - table [ref=e15]:
+    - rowgroup [ref=e16]:
+      - row "Modul Status Beschreibung" [ref=e17]:
+        - columnheader "Modul" [ref=e18]
+        - columnheader "Status" [ref=e19]
+        - columnheader "Beschreibung" [ref=e20]
+    - rowgroup [ref=e21]:
+      - row "Human Design Chart ✅ Produktionsreif BodyGraph mit 9 Zentren, Energie-Typ, Autorität, Profil (1-6 Linien), Tor-Aktivierungen (1-64), Kanal-Analyse, Variablen. Berechnung lokal via Swiss Ephemeris (professionelle astronomische Genauigkeit)." [ref=e22]:
+        - cell "Human Design Chart" [ref=e23]:
+          - strong [ref=e24]: Human Design Chart
+        - cell "✅ Produktionsreif" [ref=e25]
+        - cell "BodyGraph mit 9 Zentren, Energie-Typ, Autorität, Profil (1-6 Linien), Tor-Aktivierungen (1-64), Kanal-Analyse, Variablen. Berechnung lokal via Swiss Ephemeris (professionelle astronomische Genauigkeit)." [ref=e26]
+      - row "Dan Millman Numerologie ✅ Produktionsreif Lebensweg, Wurzelzahlen, Meisterzahlen (11, 22), Null-Verstärker, Seelenweg (Vokale), Berufsweg (Konsonanten), Herausforderungen, Höhepunkte, Persönliches Jahr." [ref=e27]:
+        - cell "Dan Millman Numerologie" [ref=e28]:
+          - strong [ref=e29]: Dan Millman Numerologie
+        - cell "✅ Produktionsreif" [ref=e30]
+        - cell "Lebensweg, Wurzelzahlen, Meisterzahlen (11, 22), Null-Verstärker, Seelenweg (Vokale), Berufsweg (Konsonanten), Herausforderungen, Höhepunkte, Persönliches Jahr." [ref=e31]
+      - row "Gene Keys ✅ Produktionsreif 64 Gene Keys mit Schatten, Gabe und Siddhi — Hologenetisches Profil." [ref=e32]:
+        - cell "Gene Keys" [ref=e33]:
+          - strong [ref=e34]: Gene Keys
+        - cell "✅ Produktionsreif" [ref=e35]
+        - cell "64 Gene Keys mit Schatten, Gabe und Siddhi — Hologenetisches Profil." [ref=e36]
+      - row "Planetare Transits ✅ Produktionsreif Tägliche Planetenpositionen und Vergleich mit Natal-Chart." [ref=e37]:
+        - cell "Planetare Transits" [ref=e38]:
+          - strong [ref=e39]: Planetare Transits
+        - cell "✅ Produktionsreif" [ref=e40]
+        - cell "Tägliche Planetenpositionen und Vergleich mit Natal-Chart." [ref=e41]
+      - row "KI-Synthese ⚠️ Backend-abhängig OpenAI/Anthropic/Google AI Integration für personalisierte Analyse. Erfordert Online-Backend." [ref=e42]:
+        - cell "KI-Synthese" [ref=e43]:
+          - strong [ref=e44]: KI-Synthese
+        - cell "⚠️ Backend-abhängig" [ref=e45]
+        - cell "OpenAI/Anthropic/Google AI Integration für personalisierte Analyse. Erfordert Online-Backend." [ref=e46]
+      - row "Verschlüsseltes Journal ✅ Desktop AES-256-GCM verschlüsselte Journal-Einträge, lokal gespeichert." [ref=e47]:
+        - cell "Verschlüsseltes Journal" [ref=e48]:
+          - strong [ref=e49]: Verschlüsseltes Journal
+        - cell "✅ Desktop" [ref=e50]
+        - cell "AES-256-GCM verschlüsselte Journal-Einträge, lokal gespeichert." [ref=e51]
+      - row "PDF-Export ✅ Produktionsreif Export von Charts und Reports als PDF." [ref=e52]:
+        - cell "PDF-Export" [ref=e53]:
+          - strong [ref=e54]: PDF-Export
+        - cell "✅ Produktionsreif" [ref=e55]
+        - cell "Export von Charts und Reports als PDF." [ref=e56]
+      - row "Auth & Subscription ⚠️ Backend-abhängig JWT-basierte Authentifizierung, Subscription-Tiers (FREE / PREMIUM / PRO). Erfordert Online-Backend." [ref=e57]:
+        - cell "Auth & Subscription" [ref=e58]:
+          - strong [ref=e59]: Auth & Subscription
+        - cell "⚠️ Backend-abhängig" [ref=e60]
+        - cell "JWT-basierte Authentifizierung, Subscription-Tiers (FREE / PREMIUM / PRO). Erfordert Online-Backend." [ref=e61]
+  - heading "Datenschutz-Highlight" [level=3] [ref=e62]
+  - blockquote [ref=e63]:
+    - paragraph [ref=e64]:
+      - strong [ref=e65]: Geburtsdaten verlassen das Gerät nie.
+      - text: Alle Berechnungen laufen lokal im Rust-Core (Swiss Ephemeris). Keine Cloud, keine externe API für sensible Daten.
+  - separator [ref=e66]
+  - heading "3. Technologie-Stack" [level=2] [ref=e67]
+  - heading "Desktop (Tauri v2)" [level=3] [ref=e68]
+  - table [ref=e69]:
+    - rowgroup [ref=e70]:
+      - row "Komponente Version Zweck" [ref=e71]:
+        - columnheader "Komponente" [ref=e72]
+        - columnheader "Version" [ref=e73]
+        - columnheader "Zweck" [ref=e74]
+    - rowgroup [ref=e75]:
+      - row "React 19.2 UI Framework" [ref=e76]:
+        - cell "React" [ref=e77]
+        - cell "19.2" [ref=e78]
+        - cell "UI Framework" [ref=e79]
+      - row "TypeScript 5.9 Typisierung" [ref=e80]:
+        - cell "TypeScript" [ref=e81]
+        - cell "5.9" [ref=e82]
+        - cell "Typisierung" [ref=e83]
+      - row "Vite 7.2 Build Tool" [ref=e84]:
+        - cell "Vite" [ref=e85]
+        - cell "7.2" [ref=e86]
+        - cell "Build Tool" [ref=e87]
+      - row "Tailwind CSS 3.4 Styling" [ref=e88]:
+        - cell "Tailwind CSS" [ref=e89]
+        - cell "3.4" [ref=e90]
+        - cell "Styling" [ref=e91]
+      - row "shadcn/ui latest 50+ UI Komponenten" [ref=e92]:
+        - cell "shadcn/ui" [ref=e93]
+        - cell "latest" [ref=e94]
+        - cell "50+ UI Komponenten" [ref=e95]
+      - row "Framer Motion 12.34 Animationen" [ref=e96]:
+        - cell "Framer Motion" [ref=e97]
+        - cell "12.34" [ref=e98]
+        - cell "Animationen" [ref=e99]
+      - row "Zustand 5.0 State Management" [ref=e100]:
+        - cell "Zustand" [ref=e101]
+        - cell "5.0" [ref=e102]
+        - cell "State Management" [ref=e103]
+      - row "Tauri 2.10 Desktop-Wrapper (Rust)" [ref=e104]:
+        - cell "Tauri" [ref=e105]
+        - cell "2.10" [ref=e106]
+        - cell "Desktop-Wrapper (Rust)" [ref=e107]
+      - row "Swiss Ephemeris 2.10 Astronomische Berechnungen (Rust FFI)" [ref=e108]:
+        - cell "Swiss Ephemeris" [ref=e109]
+        - cell "2.10" [ref=e110]
+        - cell "Astronomische Berechnungen (Rust FFI)" [ref=e111]
+      - row "AES-256-GCM 0.10 Journal-Verschlüsselung" [ref=e112]:
+        - cell "AES-256-GCM" [ref=e113]
+        - cell "0.10" [ref=e114]
+        - cell "Journal-Verschlüsselung" [ref=e115]
+  - heading "Backend (Node.js + Express)" [level=3] [ref=e116]
+  - table [ref=e117]:
+    - rowgroup [ref=e118]:
+      - row "Komponente Version Zweck" [ref=e119]:
+        - columnheader "Komponente" [ref=e120]
+        - columnheader "Version" [ref=e121]
+        - columnheader "Zweck" [ref=e122]
+    - rowgroup [ref=e123]:
+      - row "Express 4.18 API Server" [ref=e124]:
+        - cell "Express" [ref=e125]
+        - cell "4.18" [ref=e126]
+        - cell "API Server" [ref=e127]
+      - row "Prisma 5.22 ORM" [ref=e128]:
+        - cell "Prisma" [ref=e129]
+        - cell "5.22" [ref=e130]
+        - cell "ORM" [ref=e131]
+      - row "OpenAI 4.20 KI-Integration" [ref=e132]:
+        - cell "OpenAI" [ref=e133]
+        - cell "4.20" [ref=e134]
+        - cell "KI-Integration" [ref=e135]
+      - row "Supabase 2.38 Auth & Datenbank" [ref=e136]:
+        - cell "Supabase" [ref=e137]
+        - cell "2.38" [ref=e138]
+        - cell "Auth & Datenbank" [ref=e139]
+      - row "Zod 3.22 Validierung" [ref=e140]:
+        - cell "Zod" [ref=e141]
+        - cell "3.22" [ref=e142]
+        - cell "Validierung" [ref=e143]
+      - row "Helmet 7.1 Security Headers" [ref=e144]:
+        - cell "Helmet" [ref=e145]
+        - cell "7.1" [ref=e146]
+        - cell "Security Headers" [ref=e147]
+      - row "Swiss Ephemeris (Node) sweph Astronomische Berechnungen" [ref=e148]:
+        - cell "Swiss Ephemeris (Node)" [ref=e149]
+        - cell "sweph" [ref=e150]
+        - cell "Astronomische Berechnungen" [ref=e151]
+  - separator [ref=e152]
+  - heading "4. Architektur-Entscheidungen" [level=2] [ref=e153]
+  - heading "Desktop-First (aktuell)" [level=3] [ref=e154]
+  - list [ref=e155]:
+    - listitem [ref=e156]:
+      - strong [ref=e157]: "Grund:"
+      - text: Höchste Datenschutz-Standards, professionelle Genauigkeit via Swiss Ephemeris
+    - listitem [ref=e158]:
+      - strong [ref=e159]: "Build:"
+      - text: Tauri v2 mit Rust-Core, cross-plattform (Windows, macOS, Linux)
+  - heading "Web-Second (Roadmap)" [level=3] [ref=e160]
+  - list [ref=e161]:
+    - listitem [ref=e162]:
+      - strong [ref=e163]: "Grund:"
+      - text: Monetarisierung via SaaS-Modell, niedrigere Eintrittsbarriere
+    - listitem [ref=e164]:
+      - strong [ref=e165]: "Plan:"
+      - text: Backend-Hosting + Browser-App, Subscription-Tiers
+  - separator [ref=e166]
+  - heading "5. Next Steps / Roadmap" [level=2] [ref=e167]
+  - 'heading "Phase 1: Soft Launch (Desktop) — Q3 2026" [level=3] [ref=e168]'
+  - list [ref=e169]:
+    - listitem [ref=e170]: "[ ] Beta-Test mit 10–20 Nutzern"
+    - listitem [ref=e171]: "[ ] Feedback-Loop: UI/UX Verbesserungen"
+    - listitem [ref=e172]: "[ ] Bugfixes & Stabilität"
+    - listitem [ref=e173]: "[ ] Content: Erweiterte KI-Prompts, mehr Coaching-Impulse"
+  - 'heading "Phase 2: Web-Launch — Q4 2026" [level=3] [ref=e174]'
+  - list [ref=e175]:
+    - listitem [ref=e176]: "[ ] HD-Berechnungen im Backend (für Web-Modus)"
+    - listitem [ref=e177]: "[ ] Stripe-Integration für Subscriptions"
+    - listitem [ref=e178]: "[ ] Landing Page + Pricing-Page"
+    - listitem [ref=e179]: "[ ] Render.com / Vercel Deployment"
+    - listitem [ref=e180]: "[ ] DSGVO-konforme Datenschutzerklärung"
+  - 'heading "Phase 3: Scale — Q1 2027" [level=3] [ref=e181]'
+  - list [ref=e182]:
+    - listitem [ref=e183]: "[ ] Mobile-App (iOS/Android via Tauri oder React Native)"
+    - listitem [ref=e184]: "[ ] Community-Features (Chart-Vergleiche, Freunde)"
+    - listitem [ref=e185]: "[ ] Erweiterte Transit-Analyse (Jahres-Transits)"
+    - listitem [ref=e186]: "[ ] API-Zugriff für PRO-Nutzer"
+    - listitem [ref=e187]: "[ ] White-Label für Coaches & Berater"
+  - separator [ref=e188]
+  - heading "6. Monetarisierungs-Modell" [level=2] [ref=e189]
+  - table [ref=e190]:
+    - rowgroup [ref=e191]:
+      - row "Tier Preis (Ziel) Features" [ref=e192]:
+        - columnheader "Tier" [ref=e193]
+        - columnheader "Preis (Ziel)" [ref=e194]
+        - columnheader "Features" [ref=e195]
+    - rowgroup [ref=e196]:
+      - row "FREE 0€ 1x HD-Chart, Basis-Transit, Tages-Impuls" [ref=e197]:
+        - cell "FREE" [ref=e198]:
+          - strong [ref=e199]: FREE
+        - cell "0€" [ref=e200]
+        - cell "1x HD-Chart, Basis-Transit, Tages-Impuls" [ref=e201]
+      - row "PREMIUM ~9,99€/Monat Unlimited Charts, KI-Synthese (20/Monat), PDF-Export, Coaching-Impulse (10/Monat)" [ref=e202]:
+        - cell "PREMIUM" [ref=e203]:
+          - strong [ref=e204]: PREMIUM
+        - cell "~9,99€/Monat" [ref=e205]
+        - cell "Unlimited Charts, KI-Synthese (20/Monat), PDF-Export, Coaching-Impulse (10/Monat)" [ref=e206]
+      - row "PRO ~29,99€/Monat Alles aus PREMIUM + API-Zugriff, Desktop-App, Transit-Zeitraum-Vergleich, Prioritätssupport" [ref=e207]:
+        - cell "PRO" [ref=e208]:
+          - strong [ref=e209]: PRO
+        - cell "~29,99€/Monat" [ref=e210]
+        - cell "Alles aus PREMIUM + API-Zugriff, Desktop-App, Transit-Zeitraum-Vergleich, Prioritätssupport" [ref=e211]
+  - paragraph [ref=e212]:
+    - strong [ref=e213]: "Zielgruppen:"
+    - text: Spirituell Interessierte, Coaches, Therapeuten, HR-Berater, Persönlichkeitsentwicklung
+  - separator [ref=e214]
+  - heading "7. Assets für diese Session" [level=2] [ref=e215]
+  - table [ref=e216]:
+    - rowgroup [ref=e217]:
+      - row "Asset Pfad Beschreibung" [ref=e218]:
+        - columnheader "Asset" [ref=e219]
+        - columnheader "Pfad" [ref=e220]
+        - columnheader "Beschreibung" [ref=e221]
+    - rowgroup [ref=e222]:
+      - row "Desktop-Installer app/src-tauri/target/release/bundle/nsis/Synthesis Engine_0.1.0_x64-setup.exe Für Windows-Kollegen" [ref=e223]:
+        - cell "Desktop-Installer" [ref=e224]
+        - cell "app/src-tauri/target/release/bundle/nsis/Synthesis Engine_0.1.0_x64-setup.exe" [ref=e225]:
+          - code [ref=e226]: app/src-tauri/target/release/bundle/nsis/Synthesis Engine_0.1.0_x64-setup.exe
+        - cell "Für Windows-Kollegen" [ref=e227]
+      - row "Monetarisierungs-Plan MONETIZATION_PLAN.md Detaillierte Tech-Stack & Launch-Strategie" [ref=e228]:
+        - cell "Monetarisierungs-Plan" [ref=e229]
+        - cell "MONETIZATION_PLAN.md" [ref=e230]:
+          - code [ref=e231]: MONETIZATION_PLAN.md
+        - cell "Detaillierte Tech-Stack & Launch-Strategie" [ref=e232]
+      - row "CI/CD Pipeline .github/workflows/ GitHub Actions für Backend, Frontend, Docker" [ref=e233]:
+        - cell "CI/CD Pipeline" [ref=e234]
+        - cell ".github/workflows/" [ref=e235]:
+          - code [ref=e236]: .github/workflows/
+        - cell "GitHub Actions für Backend, Frontend, Docker" [ref=e237]
+      - row "Docker-Setup docker-compose.yml + backend/Dockerfile Production-Ready Multi-Stage Build" [ref=e238]:
+        - cell "Docker-Setup" [ref=e239]
+        - cell "docker-compose.yml + backend/Dockerfile" [ref=e240]:
+          - code [ref=e241]: docker-compose.yml
+          - text: +
+          - code [ref=e242]: backend/Dockerfile
+        - cell "Production-Ready Multi-Stage Build" [ref=e243]
+  - separator [ref=e244]
+  - heading "8. Risiken & Blocker" [level=2] [ref=e245]
+  - table [ref=e246]:
+    - rowgroup [ref=e247]:
+      - row "Risiko Wahrscheinlichkeit Mitigation" [ref=e248]:
+        - columnheader "Risiko" [ref=e249]
+        - columnheader "Wahrscheinlichkeit" [ref=e250]
+        - columnheader "Mitigation" [ref=e251]
+    - rowgroup [ref=e252]:
+      - row "Swiss Ephemeris Lizenz (AGPL) Mittel Kommerzielle Lizenz von Astrodienst erwerben (~500€)" [ref=e253]:
+        - cell "Swiss Ephemeris Lizenz (AGPL)" [ref=e254]
+        - cell "Mittel" [ref=e255]
+        - cell "Kommerzielle Lizenz von Astrodienst erwerben (~500€)" [ref=e256]
+      - row "KI-Kosten (OpenAI API) Hoch Token-Limiting pro Nutzer, Caching, günstigere Modelle" [ref=e257]:
+        - cell "KI-Kosten (OpenAI API)" [ref=e258]
+        - cell "Hoch" [ref=e259]
+        - cell "Token-Limiting pro Nutzer, Caching, günstigere Modelle" [ref=e260]
+      - row "Konkurrenz (MyBodyGraph, etc.) Mittel Differenzierung via KI-Synthese & 3-System-Integration" [ref=e261]:
+        - cell "Konkurrenz (MyBodyGraph, etc.)" [ref=e262]
+        - cell "Mittel" [ref=e263]
+        - cell "Differenzierung via KI-Synthese & 3-System-Integration" [ref=e264]
+      - row "Datenschutz-Aufwand (DSGVO) Mittel Keine Speicherung von Geburtsdaten, nur Ergebnisse" [ref=e265]:
+        - cell "Datenschutz-Aufwand (DSGVO)" [ref=e266]
+        - cell "Mittel" [ref=e267]
+        - cell "Keine Speicherung von Geburtsdaten, nur Ergebnisse" [ref=e268]
+  - separator [ref=e269]
+  - paragraph [ref=e270]:
+    - emphasis [ref=e271]: "Dokument generiert für interne Demo-Session. Bei Fragen: Buxe."

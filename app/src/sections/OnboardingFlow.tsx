@@ -63,6 +63,10 @@ export function OnboardingFlow() {
   const [locationResults, setLocationResults] = useState<GeocodeResult[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<GeocodeResult | undefined>(undefined);
   const [timezone, setTimezone] = useState('');
+  // Manual coordinates fallback (when backend search is unavailable)
+  const [manualMode, setManualMode] = useState(false);
+  const [manualLat, setManualLat] = useState('');
+  const [manualLng, setManualLng] = useState('');
 
   // Refs
   const searchAbortRef = useRef<AbortController | null>(null);
@@ -93,13 +97,18 @@ export function OnboardingFlow() {
       case 'birthtime':
         return timeValidation;
       case 'birthplace':
+        if (manualMode) {
+          const lat = parseFloat(manualLat);
+          const lng = parseFloat(manualLng);
+          return !isNaN(lat) && lat >= -90 && lat <= 90 && !isNaN(lng) && lng >= -180 && lng <= 180;
+        }
         return !!selectedLocation;
       case 'confirm':
         return true;
       default:
         return false;
     }
-  }, [currentStep, nameValidation.valid, dateValidation.valid, timeValidation, selectedLocation]);
+  }, [currentStep, nameValidation.valid, dateValidation.valid, timeValidation, selectedLocation, manualMode, manualLat, manualLng]);
 
   // Location search with debounce and cleanup
   useEffect(() => {
@@ -184,7 +193,24 @@ export function OnboardingFlow() {
 
   // Submit handler
   const handleSubmit = useCallback(async () => {
-    if (!birthDate || !selectedLocation) return;
+    if (!birthDate) return;
+
+    // Use manual coordinates if no location selected
+    let lat: number | undefined;
+    let lng: number | undefined;
+    let placeName: string;
+
+    if (selectedLocation) {
+      lat = selectedLocation.latitude;
+      lng = selectedLocation.longitude;
+      placeName = selectedLocation.name;
+    } else if (manualMode) {
+      lat = parseFloat(manualLat);
+      lng = parseFloat(manualLng);
+      placeName = locationQuery || 'Manuell eingegebener Ort';
+    }
+
+    if (lat === undefined || lng === undefined || isNaN(lat) || isNaN(lng)) return;
 
     setIsSubmitting(true);
     setLoading(true);
@@ -193,27 +219,27 @@ export function OnboardingFlow() {
       name: name.trim(),
       birthDate: format(birthDate, 'yyyy-MM-dd'),
       birthTime: birthTime || '12:00',
-      latitude: selectedLocation.latitude,
-      longitude: selectedLocation.longitude,
-      timezone,
-      city: selectedLocation.name.split(',')[0],
-      country: selectedLocation.country,
+      latitude: lat,
+      longitude: lng,
+      timezone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      city: placeName!.split(',')[0],
+      country: '',
     };
 
     const userData = {
       fullName: birthData.name,
       birthDate: birthData.birthDate,
       birthTime: birthData.birthTime,
-      birthPlace: selectedLocation.name,
+      birthPlace: placeName!,
       latitude: birthData.latitude,
       longitude: birthData.longitude,
-      timezone: timezone,
+      timezone: birthData.timezone,
     };
 
     setUserData(userData);
     setIsSubmitting(false);
     setStep('processing');
-  }, [birthDate, selectedLocation, name, birthTime, timezone, setUserData, setStep]);
+  }, [birthDate, selectedLocation, manualMode, manualLat, manualLng, locationQuery, name, birthTime, timezone, setUserData, setStep]);
 
   // ============================================================================
   // STEP CONTENT — Rendered inline (NOT as components) to prevent focus loss
@@ -358,67 +384,132 @@ export function OnboardingFlow() {
           <div className="space-y-6">
             <div className="text-center">
               <h2 className="text-xl font-bold text-white mb-2">Wo bist du geboren?</h2>
-              <p className="text-white/60">Gib deinen Geburtsort ein (Stadt, Land)</p>
+              <p className="text-white/60">
+                {manualMode
+                  ? 'Gib die Koordinaten deines Geburtsorts ein'
+                  : 'Suche nach deinem Geburtsort (Stadt, Land)'}
+              </p>
             </div>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-              <Input
-                value={locationQuery}
-                onChange={(e) => setLocationQuery(e.target.value)}
-                placeholder="z.B. Berlin, Deutschland"
-                className="pl-10 h-14 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-purple-500/50"
-                autoComplete="off"
-                autoFocus
-              />
-              {isSearching && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+
+            {!manualMode ? (
+              <>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                  <Input
+                    value={locationQuery}
+                    onChange={(e) => setLocationQuery(e.target.value)}
+                    placeholder="z.B. Berlin, Deutschland"
+                    className="pl-10 h-14 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-purple-500/50"
+                    autoComplete="off"
+                    autoFocus
+                  />
+                  {isSearching && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+                    </div>
+                  )}
+                  {!isSearching && locationQuery && (
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
+                  )}
                 </div>
-              )}
-              {!isSearching && locationQuery && (
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
-              )}
-            </div>
 
-            {/* Location Results */}
-            {locationResults.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-2 max-h-48 overflow-y-auto rounded-xl bg-white/5 border border-white/10 p-2"
-              >
-                {locationResults.map((location, i) => (
-                  <button
-                    key={`${location.name}-${i}`}
-                    onClick={() => {
-                      setSelectedLocation(location);
-                      setLocationQuery(location.name);
-                      setLocationResults([]);
-                    }}
-                    className={cn(
-                      'w-full p-3 rounded-lg text-left transition-all',
-                      selectedLocation?.name === location.name
-                        ? 'bg-purple-500/20 border border-purple-500/30'
-                        : 'hover:bg-white/5'
-                    )}
+                {/* Location Results */}
+                {locationResults.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-2 max-h-48 overflow-y-auto rounded-xl bg-white/5 border border-white/10 p-2"
                   >
-                    <p className="text-sm text-white truncate">{location.name}</p>
-                    <p className="text-xs text-white/40">
-                      {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
-                    </p>
-                  </button>
-                ))}
-              </motion.div>
-            )}
+                    {locationResults.map((location, i) => (
+                      <button
+                        key={`${location.name}-${i}`}
+                        onClick={() => {
+                          setSelectedLocation(location);
+                          setLocationQuery(location.name);
+                          setLocationResults([]);
+                        }}
+                        className={cn(
+                          'w-full p-3 rounded-lg text-left transition-all',
+                          selectedLocation?.name === location.name
+                            ? 'bg-purple-500/20 border border-purple-500/30'
+                            : 'hover:bg-white/5'
+                        )}
+                      >
+                        <p className="text-sm text-white truncate">{location.name}</p>
+                        <p className="text-xs text-white/40">
+                          {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                        </p>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
 
-            {timezone && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-sm text-emerald-400 text-center"
-              >
-                ✓ Zeitzone erkannt: {timezone}
-              </motion.p>
+                {locationQuery.length >= 2 && !isSearching && locationResults.length === 0 && (
+                  <div className="text-center">
+                    <p className="text-sm text-white/40 mb-3">Keine Ergebnisse gefunden.</p>
+                    <button
+                      onClick={() => {
+                        setManualMode(true);
+                        setSelectedLocation(undefined);
+                      }}
+                      className="text-sm text-purple-400 hover:text-purple-300 underline"
+                    >
+                      Koordinaten manuell eingeben →
+                    </button>
+                  </div>
+                )}
+
+                {timezone && (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-sm text-emerald-400 text-center"
+                  >
+                    ✓ Zeitzone erkannt: {timezone}
+                  </motion.p>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/40">Lat</span>
+                    <Input
+                      value={manualLat}
+                      onChange={(e) => setManualLat(e.target.value)}
+                      placeholder="z.B. 52.5200"
+                      className="pl-12 h-14 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-purple-500/50"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/40">Lng</span>
+                    <Input
+                      value={manualLng}
+                      onChange={(e) => setManualLng(e.target.value)}
+                      placeholder="z.B. 13.4050"
+                      className="pl-12 h-14 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-purple-500/50"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 text-sm text-white/40">
+                  <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>
+                    Du findest Koordinaten z.B. auf Google Maps (Rechtsklick → "Koordinaten kopieren").
+                    Format: Dezimalgrad (z.B. 52.5200, 13.4050 für Berlin)
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setManualMode(false);
+                    setManualLat('');
+                    setManualLng('');
+                  }}
+                  className="text-sm text-purple-400 hover:text-purple-300 underline"
+                >
+                  ← Zurück zur Ortssuche
+                </button>
+              </>
             )}
           </div>
         );
@@ -439,7 +530,7 @@ export function OnboardingFlow() {
               <DataRow label="Uhrzeit" value={birthTime || '12:00'} />
               <DataRow
                 label="Ort"
-                value={selectedLocation?.name || '-'}
+                value={selectedLocation?.name || locationQuery || 'Manuell eingegeben'}
                 truncate
               />
               <DataRow
@@ -447,7 +538,9 @@ export function OnboardingFlow() {
                 value={
                   selectedLocation
                     ? `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`
-                    : '-'
+                    : manualMode
+                      ? `${parseFloat(manualLat).toFixed(4)}, ${parseFloat(manualLng).toFixed(4)}`
+                      : '-'
                 }
               />
             </div>

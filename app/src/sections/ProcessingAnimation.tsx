@@ -2,18 +2,22 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/stores/appStore';
 import { invokeSafe, isTauri } from '@/lib/tauri';
+import { Button } from '@/components/ui/button';
+import { AlertCircle, RotateCcw, Sparkles } from 'lucide-react';
 
 const phases = [
-  { id: 'void', text: '', duration: 400 },
+  { id: 'void', text: '', duration: 0 },
   { id: 'cosmic', text: 'Verbinde mit dem Kosmos...', duration: 800 },
-  { id: 'ephemeris', text: 'Berechne Planetenpositionen...', duration: 800 },
-  { id: 'numerology', text: 'Analysiere numerologische Muster...', duration: 800 },
-  { id: 'synthesis', text: 'Synthetisiere dein einzigartiges Profil...', duration: 600 },
+  { id: 'ephemeris', text: 'Berechne Planetenpositionen...', duration: 1200 },
+  { id: 'numerology', text: 'Analysiere numerologische Muster...', duration: 1000 },
+  { id: 'synthesis', text: 'Synthetisiere dein einzigartiges Profil...', duration: 800 },
 ];
 
 export function ProcessingAnimation() {
   const [currentPhase, setCurrentPhase] = useState(0);
+  const [progress, setProgress] = useState(0);
   const [showReveal, setShowReveal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { userData, setHDChart, setMillmanProfile, setStep } = useAppStore();
 
   useEffect(() => {
@@ -22,111 +26,114 @@ export function ProcessingAnimation() {
     const runCalculations = async () => {
       try {
         if (!isTauri()) {
-          console.warn('[ProcessingAnimation] Local calculations require Tauri desktop build. In web mode, calculations should be performed via backend API.');
-          // In web mode, skip to results if cached data exists
-          const cached = localStorage.getItem('synthesis_profile');
-          if (cached) {
-            const data = JSON.parse(cached);
-            if (data.humanDesign) setHDChart(data.humanDesign);
-            if (data.millman) setMillmanProfile(data.millman);
-          }
-          setShowReveal(true);
-          setTimeout(() => setStep('results'), 1500);
+          setError(
+            'Diese Version benötigt die Desktop-App für lokale Berechnungen. ' +
+            'Bitte installiere Synthesis Engine als Desktop-Anwendung.'
+          );
           return;
         }
 
-        // Parse birth data (YYYY-MM-DD format from OnboardingFlow)
         const [year, month, day] = userData.birthDate.split('-').map(Number);
         const [hour, minute] = userData.birthTime.split(':').map(Number);
 
-        // Convert IANA timezone to numeric offset for Tauri
         const getTzOffset = (ianaTz: string, dateStr: string): number => {
           try {
             const d = new Date(dateStr + 'T12:00:00');
-            const fmt = new Intl.DateTimeFormat('en-US', {
-              timeZone: ianaTz,
-              timeZoneName: 'shortOffset',
-            });
+            const fmt = new Intl.DateTimeFormat('en-US', { timeZone: ianaTz, timeZoneName: 'shortOffset' });
             const parts = fmt.formatToParts(d);
             const tzPart = parts.find((p) => p.type === 'timeZoneName')?.value || '';
             const match = tzPart.match(/GMT([+-]\d+)/);
             return match ? parseInt(match[1], 10) : 1;
           } catch {
-            return 1; // Default to CET
+            return 1;
           }
         };
         const tzOffset = getTzOffset(userData.timezone, userData.birthDate);
 
-        // Calculate Human Design via Tauri (desktop only)
         const hdResult = await invokeSafe<HumanDesignChart>('calculate_human_design', {
-          year,
-          month,
-          day,
-          hour,
-          minute,
+          year, month, day, hour, minute,
           latitude: userData.latitude,
           longitude: userData.longitude,
           timezone: tzOffset,
         });
 
-        // Calculate Numerology via Tauri (desktop only)
         const millmanResult = await invokeSafe<MillmanProfile>('calculate_numerology', {
           birthDate: userData.birthDate,
           fullName: userData.fullName,
         });
 
         if (!hdResult || !millmanResult) {
-          throw new Error(
-            isTauri()
-              ? 'Tauri calculation returned empty result'
-              : 'Desktop app required for full calculations. Please download the desktop version.'
-          );
+          throw new Error('Berechnung hat keine Ergebnisse zurückgegeben. Prüfe deine Eingaben.');
         }
 
         setHDChart(hdResult as any);
         setMillmanProfile(millmanResult);
-
-        // Trigger reveal
+        setProgress(100);
         setShowReveal(true);
-
-        // Move to results after reveal animation
-        setTimeout(() => {
-          setStep('results');
-        }, 1500);
-      } catch (error) {
-        console.error('Calculation error:', error);
-        // If not in Tauri, show a message and redirect back
-        if (!isTauri()) {
-          setShowReveal(true);
-          setTimeout(() => setStep('results'), 1500);
-        }
+        setTimeout(() => setStep('results'), 1800);
+      } catch (err: any) {
+        console.error('Calculation error:', err);
+        setError(err?.message || 'Ein unerwarteter Fehler ist aufgetreten.');
       }
     };
 
-    // Phase transitions
     let phaseIndex = 0;
+    const totalPhases = phases.length - 1;
     const phaseInterval = setInterval(() => {
       phaseIndex++;
-      if (phaseIndex < phases.length) {
+      if (phaseIndex <= totalPhases) {
         setCurrentPhase(phaseIndex);
-      } else {
+        setProgress((phaseIndex / totalPhases) * 100);
+      }
+      if (phaseIndex >= totalPhases) {
         clearInterval(phaseInterval);
       }
-    }, 700);
+    }, 900);
 
     runCalculations();
 
     return () => clearInterval(phaseInterval);
   }, [userData, setHDChart, setMillmanProfile, setStep]);
 
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full text-center space-y-6"
+        >
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-500/10 border border-red-500/20">
+            <AlertCircle className="w-10 h-10 text-red-400" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-white mb-2">Berechnung fehlgeschlagen</h2>
+            <p className="text-white/50">{error}</p>
+          </div>
+          <div className="flex gap-3 justify-center">
+            <Button
+              variant="outline"
+              onClick={() => setStep('onboarding')}
+              className="border-white/10 text-white hover:bg-white/5"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Zurück und neu versuchen
+            </Button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden">
-      {/* Background Effects */}
+    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden px-4">
+      {/* Background */}
       <div className="absolute inset-0 pointer-events-none">
         <motion.div
           className="absolute inset-0"
           animate={{
-            background: showReveal 
+            background: showReveal
               ? 'radial-gradient(circle at center, hsl(270 60% 30% / 0.3) 0%, transparent 60%)'
               : 'radial-gradient(circle at center, hsl(270 60% 20% / 0.1) 0%, transparent 50%)'
           }}
@@ -138,13 +145,12 @@ export function ProcessingAnimation() {
         {!showReveal ? (
           <motion.div
             key="processing"
-            className="relative z-10"
+            className="relative z-10 w-full max-w-sm"
             exit={{ opacity: 0, scale: 0.8 }}
             transition={{ duration: 0.5 }}
           >
-            {/* Central Mandala */}
-            <div className="relative w-64 h-64">
-              {/* Outer Ring with Gates */}
+            {/* Mandala */}
+            <div className="relative w-48 h-48 mx-auto mb-10">
               <motion.div
                 className="absolute inset-0"
                 animate={{ rotate: 360 }}
@@ -153,54 +159,45 @@ export function ProcessingAnimation() {
                 {[...Array(64)].map((_, i) => (
                   <motion.div
                     key={i}
-                    className="absolute w-1 h-3 bg-gradient-to-b from-purple-400/40 to-transparent rounded-full"
+                    className="absolute w-0.5 h-2 bg-gradient-to-b from-purple-400/40 to-transparent rounded-full"
                     style={{
                       top: '0%',
                       left: '50%',
-                      transformOrigin: '50% 128px',
+                      transformOrigin: '50% 96px',
                       transform: `rotate(${i * 5.625}deg) translateX(-50%)`,
                     }}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.01 }}
+                    transition={{ delay: i * 0.008 }}
                   />
                 ))}
               </motion.div>
-
-              {/* Middle Ring */}
               <motion.div
-                className="absolute inset-8 rounded-full border border-purple-500/20"
+                className="absolute inset-6 rounded-full border border-purple-500/20"
                 animate={{ rotate: -360 }}
                 transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
               >
                 {[...Array(12)].map((_, i) => (
                   <div
                     key={i}
-                    className="absolute w-2 h-2 bg-blue-400/30 rounded-full"
+                    className="absolute w-1.5 h-1.5 bg-blue-400/30 rounded-full"
                     style={{
-                      top: '0%',
-                      left: '50%',
-                      transformOrigin: '50% 80px',
+                      top: '0%', left: '50%',
+                      transformOrigin: '50% 60px',
                       transform: `rotate(${i * 30}deg) translateX(-50%)`,
                     }}
                   />
                 ))}
               </motion.div>
-
-              {/* Inner Glow */}
               <motion.div
-                className="absolute inset-16 rounded-full"
-                style={{
-                  background: 'radial-gradient(circle, hsl(270 60% 50% / 0.3) 0%, transparent 70%)',
-                }}
+                className="absolute inset-12 rounded-full"
+                style={{ background: 'radial-gradient(circle, hsl(270 60% 50% / 0.3) 0%, transparent 70%)' }}
                 animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
                 transition={{ duration: 2, repeat: Infinity }}
               />
-
-              {/* Center Core */}
               <motion.div
-                className="absolute inset-20 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center"
-                animate={{ 
+                className="absolute inset-16 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center"
+                animate={{
                   boxShadow: [
                     '0 0 20px hsl(270 60% 50% / 0.5)',
                     '0 0 60px hsl(270 60% 50% / 0.8)',
@@ -209,8 +206,20 @@ export function ProcessingAnimation() {
                 }}
                 transition={{ duration: 2, repeat: Infinity }}
               >
-                <span className="text-3xl font-serif text-white">✦</span>
+                <Sparkles className="w-8 h-8 text-white" />
               </motion.div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="mb-6">
+              <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-purple-500 to-indigo-500"
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.5 }}
+                />
+              </div>
+              <p className="text-center text-xs text-white/30 mt-2">{Math.round(progress)}%</p>
             </div>
 
             {/* Phase Text */}
@@ -218,10 +227,10 @@ export function ProcessingAnimation() {
               {phases[currentPhase].text && (
                 <motion.p
                   key={phases[currentPhase].id}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="text-center mt-12 text-white/60 text-lg"
+                  exit={{ opacity: 0, y: -8 }}
+                  className="text-center text-white/50 text-sm"
                 >
                   {phases[currentPhase].text}
                 </motion.p>
@@ -235,26 +244,15 @@ export function ProcessingAnimation() {
             animate={{ opacity: 1, scale: 1 }}
             className="relative z-10 text-center"
           >
-            {/* Flash Effect */}
             <motion.div
               className="fixed inset-0 bg-white"
               initial={{ opacity: 1 }}
               animate={{ opacity: 0 }}
               transition={{ duration: 0.8 }}
             />
-
-            {/* Reveal Message */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <h2 className="text-headline font-serif gradient-text mb-4">
-                Dein Profil ist bereit
-              </h2>
-              <p className="text-white/60">
-                Entdecke deine einzigartige Synthese
-              </p>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+              <h2 className="text-3xl font-serif gradient-text mb-3">Dein Profil ist bereit</h2>
+              <p className="text-white/50">Entdecke deine einzigartige Synthese</p>
             </motion.div>
           </motion.div>
         )}
@@ -263,7 +261,7 @@ export function ProcessingAnimation() {
   );
 }
 
-// Type definitions for Tauri invocations
+// Type definitions
 interface HumanDesignChart {
   energyType: string;
   authority: string;
@@ -273,27 +271,9 @@ interface HumanDesignChart {
   incarnationCross: string;
   definedCenters: string[];
   undefinedCenters: string[];
-  gates: Array<{
-    number: number;
-    line: number;
-    color: number;
-    tone: number;
-    base: number;
-    planet: string;
-    isDesign: boolean;
-  }>;
-  channels: Array<{
-    gate1: number;
-    gate2: number;
-  }>;
-  variables: {
-    digestion: string;
-    environment: string;
-    awareness: string;
-    motivation: string;
-    sense: string;
-    style: string;
-  };
+  gates: Array<{ number: number; line: number; color: number; tone: number; base: number; planet: string; isDesign: boolean }>;
+  channels: Array<{ gate1: number; gate2: number }>;
+  variables: { digestion: string; environment: string; awareness: string; motivation: string; sense: string; style: string };
 }
 
 interface MillmanProfile {
@@ -306,13 +286,7 @@ interface MillmanProfile {
   hasZeroEnhancer: boolean;
   soulUrgeString?: string;
   expressionString?: string;
-  challenges: Array<{
-    ageRange: string;
-    challengeNumber: number;
-  }>;
-  pinnacles: Array<{
-    ageRange: string;
-    pinnacleNumber: number;
-  }>;
+  challenges: Array<{ ageRange: string; challengeNumber: number }>;
+  pinnacles: Array<{ ageRange: string; pinnacleNumber: number }>;
   personalYear: number;
 }

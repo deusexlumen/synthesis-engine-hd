@@ -22,6 +22,8 @@ import { BodyGraphResponsive } from '@/components/BodyGraphResponsive';
 import { ResultsDashboardSkeleton, StatsCardSkeleton } from '@/components/Skeleton';
 import { NumerologyChart } from '@/components/NumerologyChart';
 import { AICoaching } from '@/components/AICoaching';
+import { EmptyState } from '@/components/EmptyState';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import type { Center } from '@/types/humanDesign';
 
 const springConfig = { stiffness: 400, damping: 30 };
@@ -79,6 +81,30 @@ const numberColors: Record<number, string> = {
   11: 'text-amber-400',
   22: 'text-violet-400',
 };
+
+function TooltipLabel({ label, className }: { label: string; className?: string }) {
+  const tooltips: Record<string, string> = {
+    'Energie-Typ': 'Dein grundlegendes energetisches Muster. Bestimmt, wie du mit der Welt interagierst und Energie austauschst.',
+    'Autorität': 'Deine innere Entscheidungsinstanz. Zeigt dir, wie du zuverlässige Entscheidungen für dich treffen kannst.',
+    'Profil': 'Deine Lebensrolle. Wie andere dich wahrnehmen und wie du dich selbst in der Welt siehst.',
+    'Definierte Zentren': 'Energiezentren in deinem BodyGraph, die konsistent aktiv und farbig markiert sind.',
+    'Aktive Kanäle': 'Verbindungen zwischen Zentren, die deine festen Energiemuster und Talente definieren.',
+    'Aktivierte Tore': 'Spezifische Energiepunkte in deinem Design, die durch Planetenpositionen zum Zeitpunkt deiner Geburt aktiviert wurden.',
+    'Lebenszahl': 'Deine zentrale numerologische Zahl nach Dan Millman. Sie offenbart deinen Lebensweg und Hauptzweck.',
+    'Schicksalszahl': 'Die reduzierte Form deiner Lebenszahl. Zeigt deine Kernaufgabe in diesem Leben.',
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`cursor-help border-b border-dotted border-white/30 ${className || ''}`}>
+          {label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{tooltips[label]}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function ResultsDashboard() {
   const { userData, hdChart, millmanProfile, reset } = useAppStore();
@@ -176,7 +202,7 @@ export function ResultsDashboard() {
                             <Zap className="w-5 h-5 text-white" />
                           </div>
                           <div>
-                            <p className="text-white/50 text-sm">Energie-Typ</p>
+                            <p className="text-white/50 text-sm"><TooltipLabel label="Energie-Typ" /></p>
                             <p className="text-lg font-medium">{energyStyle.label}</p>
                           </div>
                         </div>
@@ -191,8 +217,8 @@ export function ResultsDashboard() {
                         </div>
 
                         <div className="mt-4 flex flex-wrap gap-2">
-                          <Badge variant="outline" className="border-white/20">Autorität: {hdChart.authority}</Badge>
-                          <Badge variant="outline" className="border-white/20">Profil: {hdChart.profile}</Badge>
+                          <Badge variant="outline" className="border-white/20"><TooltipLabel label="Autorität" />: {hdChart.authority}</Badge>
+                          <Badge variant="outline" className="border-white/20"><TooltipLabel label="Profil" />: {hdChart.profile}</Badge>
                         </div>
                       </CardContent>
                     </Card>
@@ -212,14 +238,14 @@ export function ResultsDashboard() {
                             <Target className="w-5 h-5 text-white" />
                           </div>
                           <div>
-                            <p className="text-white/50 text-sm">Lebenszahl</p>
+                            <p className="text-white/50 text-sm"><TooltipLabel label="Lebenszahl" /></p>
                             <p className="text-lg font-medium">{millmanProfile.lifePathString}</p>
                           </div>
                         </div>
                         <div className={`text-6xl font-serif font-medium ${numberColor} mb-3`}>
                           {millmanProfile.destinyNumber}
                         </div>
-                        <p className="text-white/50 text-sm mb-4">Schicksalszahl</p>
+                        <p className="text-white/50 text-sm mb-4"><TooltipLabel label="Schicksalszahl" /></p>
 
                         {millmanProfile.hasMasterNumber && (
                           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 mb-4">
@@ -256,7 +282,13 @@ export function ResultsDashboard() {
                       <CardContent className="p-4 text-center">
                         <stat.icon className="w-5 h-5 text-white/40 mx-auto mb-2" />
                         <p className="text-2xl font-serif font-medium">{stat.value}</p>
-                        <p className="text-white/40 text-xs">{stat.label}</p>
+                        <p className="text-white/40 text-xs">
+                          {['Definierte Zentren', 'Aktive Kanäle', 'Aktivierte Tore'].includes(stat.label) ? (
+                            <TooltipLabel label={stat.label} />
+                          ) : (
+                            stat.label
+                          )}
+                        </p>
                       </CardContent>
                     </Card>
                   ))}
@@ -414,15 +446,15 @@ export function ResultsDashboard() {
                         </h4>
                         <div className="space-y-3">
                           <div className="flex justify-between">
-                            <span className="text-white/50">Energie-Typ</span>
+                            <span className="text-white/50"><TooltipLabel label="Energie-Typ" /></span>
                             <span className="font-medium">{hdChart.energyType.replace('_', ' ')}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-white/50">Autorität</span>
+                            <span className="text-white/50"><TooltipLabel label="Autorität" /></span>
                             <span className="font-medium">{hdChart.authority}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-white/50">Profil</span>
+                            <span className="text-white/50"><TooltipLabel label="Profil" /></span>
                             <span className="font-medium">{hdChart.profile}</span>
                           </div>
                           <div className="flex justify-between">
@@ -430,11 +462,11 @@ export function ResultsDashboard() {
                             <span className="font-medium text-right max-w-[150px]">{hdChart.incarnationCross}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-white/50">Definierte Zentren</span>
+                            <span className="text-white/50"><TooltipLabel label="Definierte Zentren" /></span>
                             <span className="font-medium">{hdChart.definedCenters.length} / 9</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-white/50">Aktive Kanäle</span>
+                            <span className="text-white/50"><TooltipLabel label="Aktive Kanäle" /></span>
                             <span className="font-medium">{hdChart.channels.length}</span>
                           </div>
                         </div>
@@ -447,11 +479,11 @@ export function ResultsDashboard() {
                         </h4>
                         <div className="space-y-3">
                           <div className="flex justify-between">
-                            <span className="text-white/50">Lebenszahl</span>
+                            <span className="text-white/50"><TooltipLabel label="Lebenszahl" /></span>
                             <span className="font-medium">{millmanProfile.lifePathString}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-white/50">Schicksalszahl</span>
+                            <span className="text-white/50"><TooltipLabel label="Schicksalszahl" /></span>
                             <span className={`font-medium ${numberColor}`}>{millmanProfile.destinyNumber}</span>
                           </div>
                           {millmanProfile.soulUrgeString && (
@@ -486,21 +518,28 @@ export function ResultsDashboard() {
                     <h4 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-4">
                       Variablen (Human Design)
                     </h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                      {[
-                        { label: 'Verdauung', value: hdChart.variables.digestion },
-                        { label: 'Umgebung', value: hdChart.variables.environment },
-                        { label: 'Bewusstsein', value: hdChart.variables.awareness },
-                        { label: 'Motivation', value: hdChart.variables.motivation },
-                        { label: 'Sinn', value: hdChart.variables.sense },
-                        { label: 'Stil', value: hdChart.variables.style },
-                      ].map((v, i) => (
-                        <div key={i} className="p-3 rounded-xl bg-white/[0.03]">
-                          <p className="text-white/40 text-xs mb-1">{v.label}</p>
-                          <p className="font-medium">{v.value}</p>
-                        </div>
-                      ))}
-                    </div>
+                    {hdChart.variables && Object.values(hdChart.variables).some(v => v && v !== 'N/A') ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        {[
+                          { label: 'Verdauung', value: hdChart.variables.digestion },
+                          { label: 'Umgebung', value: hdChart.variables.environment },
+                          { label: 'Bewusstsein', value: hdChart.variables.awareness },
+                          { label: 'Motivation', value: hdChart.variables.motivation },
+                          { label: 'Sinn', value: hdChart.variables.sense },
+                          { label: 'Stil', value: hdChart.variables.style },
+                        ].map((v, i) => (
+                          <div key={i} className="p-3 rounded-xl bg-white/[0.03]">
+                            <p className="text-white/40 text-xs mb-1">{v.label}</p>
+                            <p className="font-medium">{v.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState
+                        title="Keine Variablen verfügbar"
+                        description="Für dieses Profil konnten keine Human Design Variablen berechnet werden."
+                      />
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>

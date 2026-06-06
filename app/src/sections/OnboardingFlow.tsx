@@ -186,6 +186,12 @@ export function OnboardingFlow() {
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && nameOk) {
+                      e.preventDefault();
+                      document.getElementById('birthdate-trigger')?.focus();
+                    }
+                  }}
                   placeholder="z.B. Max Mustermann"
                   className="pl-10 h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-purple-500/50"
                   maxLength={50}
@@ -231,6 +237,12 @@ export function OnboardingFlow() {
                   type="time"
                   value={birthTime}
                   onChange={(e) => setBirthTime(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && timeOk) {
+                      e.preventDefault();
+                      document.getElementById('location-input')?.focus();
+                    }
+                  }}
                   className="w-28 h-12 bg-white/5 border-white/10 text-white [color-scheme:dark] focus:border-purple-500/50 text-center"
                 />
               </div>
@@ -245,10 +257,17 @@ export function OnboardingFlow() {
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
                 <Input
+                  id="location-input"
                   value={locationQuery}
                   onChange={(e) => {
                     setLocationQuery(e.target.value);
                     setSelectedLocation(undefined);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && dataComplete) {
+                      e.preventDefault();
+                      setCurrentStep('confirm');
+                    }
                   }}
                   placeholder="z.B. Berlin, Deutschland"
                   className="pl-10 h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-purple-500/50"

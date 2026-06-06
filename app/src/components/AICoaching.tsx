@@ -4,6 +4,7 @@ import { useAIConfigStore } from '@/stores/aiConfigStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Sparkles, MessageCircle, RefreshCw, Brain, Lock, ChevronRight, Loader2 } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
 import { toast } from 'sonner';
 
 interface AICoachingProps {
@@ -79,27 +80,23 @@ export function AICoaching({ hdData, numerologyData }: AICoachingProps) {
 
   if (!isConfigured()) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass rounded-3xl p-8 text-center"
-      >
-        <div className="w-16 h-16 mx-auto bg-white/5 rounded-2xl flex items-center justify-center mb-4">
-          <Lock className="w-8 h-8 text-white/30" />
+      <div className="glass rounded-3xl">
+        <EmptyState
+          title="KI-Coaching"
+          description="Aktiviere KI-Coaching, indem du deinen eigenen API-Key in den Einstellungen hinzufügst."
+          icon={<Lock className="w-8 h-8 text-white/30" />}
+        />
+        <div className="flex justify-center pb-8">
+          <Button
+            variant="outline"
+            className="border-white/20 hover:bg-white/5"
+            onClick={() => {/* Navigate to AI settings */}}
+          >
+            Zu den Einstellungen
+            <ChevronRight className="w-4 h-4 ml-2" />
+          </Button>
         </div>
-        <h3 className="text-xl font-serif font-medium mb-2">KI-Coaching</h3>
-        <p className="text-white/50 mb-6 max-w-sm mx-auto">
-          Aktiviere KI-Coaching, indem du deinen eigenen API-Key in den Einstellungen hinzufügst.
-        </p>
-        <Button 
-          variant="outline" 
-          className="border-white/20 hover:bg-white/5"
-          onClick={() => {/* Navigate to AI settings */}}
-        >
-          Zu den Einstellungen
-          <ChevronRight className="w-4 h-4 ml-2" />
-        </Button>
-      </motion.div>
+      </div>
     );
   }
 

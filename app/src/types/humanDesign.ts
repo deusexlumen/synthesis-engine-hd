@@ -39,6 +39,7 @@ export interface GeocodeResult {
   latitude: number;
   longitude: number;
   country: string;
+  timezone?: string;
 }
 
 export interface TimezoneResult {

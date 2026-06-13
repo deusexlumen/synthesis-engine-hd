@@ -47,3 +47,7 @@ coverage/
 *.tmp
 *.temp
 .cache/
+
+# Generated exports (root-level documentation exports only)
+/*.pdf
+/*.html

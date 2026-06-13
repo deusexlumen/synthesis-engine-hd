@@ -60,3 +60,16 @@
 - **SettingsSection**: Lokaler State als Edit-Buffer bleibt bestehen; vollständige Eliminierung lokaler State zugunsten direkter Store-Bindings wäre möglich.
 - **192 Inkarnationskreuze**: 64 thematische Namen sind gemappt; vollständige 192-Kreuz-Datenbank (mit Variations-Nummern) könnte ergänzt werden.
 - **Zustand persist Tests**: `authStore.test.ts` und `aiConfigStore.test.ts` sind skipped — Zustand persist flush timing ist in Tests nicht zuverlässig reproduzierbar. Security enforced by `partialize` config (code review).
+
+## 2026-06-13 — Dokumentations-Konsolidierung
+
+### Audit Reports
+- `AUDIT_REPORT_2026-05-20.md` und `AUDIT_REPORT.md` sind **inhaltlich verschieden** und werden beide aufbewahrt.
+- `AUDIT_REPORT_2026-05-20.md`: Ursprünglicher holistischer Audit vom 2026-05-20 (Kimi Code CLI, 244 Zeilen).
+- `AUDIT_REPORT.md`: Aktualisierter Production-Readiness-Audit vom 2026-06-05 (BUXE Agentic Mode, 216 Zeilen), der die 2026-05-20-Befunde teilweise aufgreift und um neue Build-/Runtime-Fehler ergänzt.
+- Die Dateien sind nicht Duplikate; `AUDIT_REPORT.md` ist der aktuellere Stand, `AUDIT_REPORT_2026-05-20.md` dient als historische Referenz.
+
+### Generierte Exports
+- `PROJECT_OVERVIEW.md` ist die Quelle der Wahrheit.
+- `PROJECT_OVERVIEW.html` und `PROJECT_OVERVIEW.pdf` waren zeitlich später erstellte Exporte (2026-06-05 19:24) und wurden entfernt.
+- `.gitignore` um `*.pdf` und `*.html` ergänzt, um zukünftige generierte Exporte auszuschließen.

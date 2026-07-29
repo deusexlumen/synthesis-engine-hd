@@ -16,8 +16,8 @@ model User {
   email              String              @unique
   passwordHash       String?             // Nullable for OAuth-only users
   emailVerified      Boolean             @default(false)
-  emailVerifyToken   String?             @unique
-  passwordResetToken String?             @unique
+  emailVerifyToken   String?             @unique // SHA-256 digest of the emailed token, never plaintext
+  passwordResetToken String?             @unique // SHA-256 digest of the emailed token, never plaintext
   passwordResetAt    DateTime?
   status             UserStatus          @default(ACTIVE)
   createdAt          DateTime            @default(now())

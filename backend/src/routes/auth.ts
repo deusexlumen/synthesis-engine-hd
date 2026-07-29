@@ -6,7 +6,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
-import { authService, rbacService, subscriptionService } from '../services/auth';
+import { authService, rbacService, subscriptionService, hashToken } from '../services/auth';
 import { authenticate } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authLimiter } from '../middleware/rateLimit';
@@ -285,9 +285,10 @@ router.post(
   asyncHandler(async (req, res) => {
     const { token } = z.object({ token: z.string() }).parse(req.body);
 
-    // Find user with verification token
+    // Tokens are stored as SHA-256 digests (see hashToken) — hash the
+    // presented plaintext token before looking it up.
     const user = await prisma.user.findFirst({
-      where: { emailVerifyToken: token },
+      where: { emailVerifyToken: hashToken(token) },
     });
 
     if (!user) {

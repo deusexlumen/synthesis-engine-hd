@@ -5,6 +5,7 @@
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
@@ -82,6 +83,22 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 // ============================================================================
+// ONE-TIME TOKEN HASHING
+// ============================================================================
+
+/**
+ * Hash a one-time token (email verification, password reset) for storage.
+ * The plaintext token only ever travels inside the email link; the DB keeps
+ * just its SHA-256 digest, so a database leak doesn't hand out usable
+ * reset/verify tokens. SHA-256 (not bcrypt) is right here: the tokens are
+ * high-entropy UUIDs, so brute force is infeasible and lookup-by-hash must
+ * stay deterministic for the `findFirst({ where: { token } })` queries.
+ */
+export function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+// ============================================================================
 // TOKEN GENERATION
 // ============================================================================
 
@@ -146,11 +163,12 @@ export const authService = {
   /**
    * Register a new user
    */
-  async register(input: RegisterInput, req?: Request): Promise<{ user: any; tokens: AuthTokens }> {
+  async register(input: RegisterInput, req?: Request): Promise<{ user: any; tokens: AuthTokens; emailVerifyToken: string }> {
     // Hash password
     const passwordHash = await hashPassword(input.password);
 
-    // Create verification token
+    // Create verification token — the PLAINTEXT goes into the verification
+    // email, only its SHA-256 digest is stored (see hashToken).
     const emailVerifyToken = uuidv4();
 
     // Get default role (USER)
@@ -175,7 +193,7 @@ export const authService = {
           data: {
             email: input.email.toLowerCase(),
             passwordHash,
-            emailVerifyToken,
+            emailVerifyToken: hashToken(emailVerifyToken),
             roles: {
               create: {
                 roleId: defaultRole.id,
@@ -223,7 +241,9 @@ export const authService = {
     // Generate tokens
     const tokens = await this.createSession(user, req);
 
-    return { user, tokens };
+    // Return the PLAINTEXT verify token alongside — the caller (route layer)
+    // needs it to build the verification email link. It is never persisted.
+    return { user, tokens, emailVerifyToken };
   },
 
   /**
@@ -507,13 +527,14 @@ export const authService = {
       return null;
     }
 
-    // Generate reset token
+    // Generate reset token — the PLAINTEXT is returned for the email link,
+    // only its SHA-256 digest is stored (see hashToken).
     const resetToken = uuidv4();
 
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        passwordResetToken: resetToken,
+        passwordResetToken: hashToken(resetToken),
         passwordResetAt: new Date(),
       },
     });
@@ -527,7 +548,7 @@ export const authService = {
   async resetPassword(token: string, newPassword: string): Promise<void> {
     const user = await prisma.user.findFirst({
       where: {
-        passwordResetToken: token,
+        passwordResetToken: hashToken(token),
         passwordResetAt: {
           gte: new Date(Date.now() - 60 * 60 * 1000), // 1 hour expiry
         },

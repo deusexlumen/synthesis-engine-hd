@@ -243,17 +243,23 @@ export const authService = {
       },
     });
 
+    // Always run one bcrypt comparison, even when the account doesn't
+    // exist — otherwise the response time differs measurably between
+    // "unknown email" (fast, no hashing) and "wrong password" (slow),
+    // which lets attackers enumerate registered emails. The dummy hash is
+    // a valid bcrypt hash of a random string; the result is discarded.
+    const DUMMY_PASSWORD_HASH = '$2a$12$LJ3m4y1xGgHfZqC0cK6UuOZQy0m9u6y0v2Q0Yq9pQzF0hK1oF0hK1';
+    const hashToCheck = user?.passwordHash ?? DUMMY_PASSWORD_HASH;
+    const isValid = await verifyPassword(input.password, hashToCheck);
+
     if (!user || !user.passwordHash) {
       throw new APIError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
 
     // Check if user is active
     if (user.status !== 'ACTIVE') {
-      throw new APIError('Account is not active', 401, 'ACCOUNT_INACTIVE');
+      throw new APIError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
-
-    // Verify password
-    const isValid = await verifyPassword(input.password, user.passwordHash);
 
     if (!isValid) {
       // Log failed attempt

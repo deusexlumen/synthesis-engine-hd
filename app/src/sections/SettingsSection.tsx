@@ -126,7 +126,7 @@ export function SettingsSection(): React.ReactElement {
       settings,
       aiSettings: {
         provider: aiConfig.provider,
-        apiKey: aiConfig.apiKey,
+        // API keys are never exported — a backup file must not leak credentials.
         model: aiConfig.model,
         temperature: aiConfig.temperature,
       },

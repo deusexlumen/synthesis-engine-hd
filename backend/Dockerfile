@@ -59,10 +59,10 @@ RUN pnpm install --prod --frozen-lockfile
 # Copy ephemeris data files
 COPY --from=builder /app/ephemeris/ ./ephemeris/
 
-# Copy built application and generated Prisma client
+# Copy built application and Prisma schema, generate client locally
 COPY --from=builder /app/dist/ ./dist/
-COPY --from=builder /app/prisma/ ./prisma/
-COPY --from=builder /app/node_modules/.prisma/ ./node_modules/.prisma/
+COPY prisma/ ./prisma/
+RUN npx -y prisma@5.22.0 generate
 
 # Non-root user for security
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser

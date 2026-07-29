@@ -8,4 +8,5 @@ export {
   TierRoute 
 } from './ProtectedRoute';
 export { AdminGuard, FeatureGuard, SubscriptionGuard } from './AdminGuard';
-export { AuthProvider, useAuthEvents } from './AuthProvider';
+export { AuthProvider } from './AuthProvider';
+export { useAuthEvents } from '@/hooks/useAuthEvents';

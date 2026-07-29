@@ -7,7 +7,7 @@ import { Component, ErrorInfo, ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/components/Toast';
+import { toast } from '@/stores/toastStore';
 
 interface Props {
   children: ReactNode;

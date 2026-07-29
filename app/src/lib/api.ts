@@ -377,7 +377,7 @@ export const api = {
           timezone: String(data.timeZone || 'UTC'),
           offset: data.currentUtcOffset?.hours || 0,
         };
-      } catch (error) {
+      } catch {
         // Fallback to browser timezone
         return {
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,

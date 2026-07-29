@@ -28,7 +28,7 @@ describe('Human Design Calculations', () => {
   it('should calculate line from gate position', () => {
     const calculateLine = (withinGate: number): number => {
       const LINE_DEGREES = 0.9375;
-      let line = Math.floor(withinGate / LINE_DEGREES) + 1;
+      const line = Math.floor(withinGate / LINE_DEGREES) + 1;
       return Math.min(6, Math.max(1, line));
     };
 

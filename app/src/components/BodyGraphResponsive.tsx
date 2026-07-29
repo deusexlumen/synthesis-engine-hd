@@ -101,21 +101,22 @@ export function BodyGraphResponsive({
   const touchState = useRef<TouchState | null>(null);
   const lastTapRef = useRef(0);
 
-  // Memoized derived state
+  // Memoized derived state (deps use the stable `chart` prop reference —
+  // optional-chained deps like `chart?.gates` break memoization guarantees)
   const definedGates = useMemo(() => {
     if (!chart?.gates) return new Set<number>();
     return new Set(chart.gates.map((g) => g.number));
-  }, [chart?.gates]);
+  }, [chart]);
 
   const definedChannels = useMemo(() => {
     if (!chart?.channels) return new Set<string>();
     return new Set(chart.channels.map((c) => `${c.gate1}-${c.gate2}`));
-  }, [chart?.channels]);
+  }, [chart]);
 
   const definedCenters = useMemo(() => {
     if (!chart?.definedCenters) return new Set<string>();
     return new Set(chart.definedCenters);
-  }, [chart?.definedCenters]);
+  }, [chart]);
 
   const isChannelDefined = useCallback(
     (from: keyof typeof CENTERS, to: keyof typeof CENTERS) => {

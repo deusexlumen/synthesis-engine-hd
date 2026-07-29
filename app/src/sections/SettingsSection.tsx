@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Bell, Shield, Palette, Globe, Database,
@@ -33,24 +33,20 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
-interface AISettings {
-  provider: 'openai' | 'anthropic' | 'google' | 'local';
-  apiKey: string;
-  model: string;
-  temperature: number;
-}
+type SettingsTab = 'profile' | 'appearance' | 'notifications' | 'privacy' | 'ai' | 'data';
 
 export function SettingsSection(): React.ReactElement {
-  const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'notifications' | 'privacy' | 'ai' | 'data'>('profile');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const appStore = useAppStore();
-  const [profile, setProfileState] = useState<UserProfile>({
+  // Initialize once from the global Zustand store (single source of truth).
+  const [profile, setProfileState] = useState<UserProfile>(() => appStore.profile ?? {
     fullName: '',
     email: '',
     birthDate: '',
     birthTime: '',
     birthLocation: '',
   });
-  const [settings, setSettingsState] = useState<AppSettings>({
+  const [settings, setSettingsState] = useState<AppSettings>(() => appStore.settings ?? {
     theme: 'dark',
     language: 'de',
     notifications: true,
@@ -65,12 +61,6 @@ export function SettingsSection(): React.ReactElement {
   const [hasChanges, setHasChanges] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
-
-  useEffect(() => {
-    // Load from global Zustand store (sync on mount)
-    if (appStore.profile) setProfileState(appStore.profile);
-    if (appStore.settings) setSettingsState(appStore.settings);
-  }, [appStore.profile, appStore.settings]);
 
   const saveSettings = () => {
     // Persist to global Zustand store (single source of truth)
@@ -162,8 +152,8 @@ export function SettingsSection(): React.ReactElement {
           if (typeof imported.temperature === 'number') aiConfig.setTemperature(imported.temperature);
         }
         setHasChanges(true);
-        appStore.setProfile && appStore.setProfile(data.profile || null);
-        appStore.setSettings && appStore.setSettings(data.settings || null);
+        appStore.setProfile(data.profile || null);
+        appStore.setSettings(data.settings || null);
       } catch (error) {
         console.error('Import fehlgeschlagen', error);
       }
@@ -171,7 +161,7 @@ export function SettingsSection(): React.ReactElement {
     reader.readAsText(file);
   };
 
-  const tabs = [
+  const tabs: { id: SettingsTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'profile', label: 'Profil', icon: User },
     { id: 'appearance', label: 'Erscheinungsbild', icon: Palette },
     { id: 'notifications', label: 'Benachrichtigungen', icon: Bell },
@@ -206,7 +196,7 @@ export function SettingsSection(): React.ReactElement {
                 <Button
                   key={tab.id}
                   variant="ghost"
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`w-full justify-start flex items-center gap-3 px-4 py-3 h-auto rounded-xl transition-all ${
                     activeTab === tab.id
                       ? 'bg-violet-500 text-white hover:bg-violet-500 hover:text-white'

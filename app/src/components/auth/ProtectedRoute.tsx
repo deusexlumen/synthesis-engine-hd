@@ -1,5 +1,4 @@
 import { Navigate, useLocation, Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -17,7 +16,6 @@ export function ProtectedRoute({
   const location = useLocation();
   const { 
     isAuthenticated, 
-    user, 
     isLoading, 
     hasRole, 
     hasTier 

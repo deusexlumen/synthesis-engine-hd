@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { toast } from '@/components/Toast';
+import { toast } from '@/stores/toastStore';
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Check } from 'lucide-react';
 
 export function RegisterForm() {
@@ -69,7 +69,7 @@ export function RegisterForm() {
       await register(formData.email, formData.password, formData.name || undefined);
       toast.success('Konto erstellt!', 'Willkommen bei deinem Human Design Journey');
       navigate('/dashboard');
-    } catch (err) {
+    } catch {
       toast.error('Registrierung fehlgeschlagen', error || 'Bitte überprüfe deine Eingaben');
     }
   };

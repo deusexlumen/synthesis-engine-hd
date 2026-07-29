@@ -91,7 +91,7 @@ export function useFocusTrap(isActive: boolean, containerRef: React.RefObject<HT
 export function useAnnouncer() {
   const [announcement, setAnnouncement] = useState('');
 
-  const announce = useCallback((message: string, priority: 'polite' | 'assertive' = 'polite') => {
+  const announce = useCallback((message: string) => {
     setAnnouncement(message);
     // Clear after announcement is likely complete
     setTimeout(() => setAnnouncement(''), 1000);
@@ -102,12 +102,12 @@ export function useAnnouncer() {
 
 // Hook for reduced motion preference
 export function useReducedMotion() {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    setPrefersReducedMotion(mediaQuery.matches);
-
     const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
     mediaQuery.addEventListener('change', handler);
     return () => mediaQuery.removeEventListener('change', handler);
@@ -118,12 +118,12 @@ export function useReducedMotion() {
 
 // Hook for high contrast preference
 export function useHighContrast() {
-  const [prefersHighContrast, setPrefersHighContrast] = useState(false);
+  const [prefersHighContrast, setPrefersHighContrast] = useState(
+    () => window.matchMedia('(prefers-contrast: high)').matches
+  );
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-contrast: high)');
-    setPrefersHighContrast(mediaQuery.matches);
-
     const handler = (e: MediaQueryListEvent) => setPrefersHighContrast(e.matches);
     mediaQuery.addEventListener('change', handler);
     return () => mediaQuery.removeEventListener('change', handler);
@@ -150,16 +150,4 @@ export function useFocusVisible() {
   }, []);
 
   return isKeyboardUser;
-}
-
-// Skip link component
-export function SkipLink({ targetId, children = 'Zum Hauptinhalt springen' }: { targetId: string; children?: React.ReactNode }) {
-  return (
-    <a
-      href={`#${targetId}`}
-      className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-white focus:text-black focus:rounded-lg"
-    >
-      {children}
-    </a>
-  );
 }

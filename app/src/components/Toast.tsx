@@ -1,141 +1,13 @@
 /**
- * Toast Notification System
- * OPTIMIZED: No race conditions, proper cleanup, accessibility
+ * Toast Notification Components
+ * Store and helpers live in @/stores/toastStore.
  */
 
 import { useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
-import { create } from 'zustand';
 import { cn } from '@/lib/utils';
-
-// ============================================================================
-// TYPES
-// ============================================================================
-
-type ToastType = 'success' | 'error' | 'warning' | 'info';
-interface Toast {
-  id: string;
-  type: ToastType;
-  title: string;
-  message?: string;
-  duration: number;
-  createdAt: number;
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
-}
-
-interface ToastStore {
-  toasts: Toast[];
-  addToast: (toast: Omit<Toast, 'id' | 'createdAt'>) => string;
-  removeToast: (id: string) => void;
-  updateToast: (id: string, updates: Partial<Toast>) => void;
-  clearAll: () => void;
-}
-
-// ============================================================================
-// STORE
-// ============================================================================
-
-export const useToastStore = create<ToastStore>((set, get) => ({
-  toasts: [],
-
-  addToast: (toastData) => {
-    const id = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    const newToast: Toast = {
-      ...toastData,
-      id,
-      createdAt: Date.now(),
-      duration: toastData.duration ?? 5000,
-    };
-
-    set((state) => ({
-      toasts: [...state.toasts.slice(-4), newToast], // Keep max 5 toasts
-    }));
-
-    return id;
-  },
-
-  removeToast: (id) => {
-    set((state) => ({
-      toasts: state.toasts.filter((t) => t.id !== id),
-    }));
-  },
-
-  updateToast: (id, updates) => {
-    set((state) => ({
-      toasts: state.toasts.map((t) => (t.id === id ? { ...t, ...updates } : t)),
-    }));
-  },
-
-  clearAll: () => set({ toasts: [] }),
-}));
-
-// ============================================================================
-// TOAST HELPERS
-// ============================================================================
-
-export const toast = {
-  success: (title: string, message?: string, duration?: number) =>
-    useToastStore.getState().addToast({ type: 'success', title, message, duration: duration ?? 5000 }),
-
-  error: (title: string, message?: string, duration?: number) =>
-    useToastStore.getState().addToast({
-      type: 'error',
-      title,
-      message,
-      duration: duration ?? 8000, // Errors stay longer
-    }),
-
-  warning: (title: string, message?: string, duration?: number) =>
-    useToastStore.getState().addToast({ type: 'warning', title, message, duration: duration ?? 5000 }),
-
-  info: (title: string, message?: string, duration?: number) =>
-    useToastStore.getState().addToast({ type: 'info', title, message, duration: duration ?? 5000 }),
-
-  promise: <T,>(
-    promise: Promise<T>,
-    messages: {
-      loading: string;
-      success: string;
-      error: string;
-    },
-    duration?: number
-  ): Promise<T> => {
-    const id = useToastStore.getState().addToast({
-      type: 'info',
-      title: messages.loading,
-      duration: 60000, // Long duration for loading
-    });
-
-    return promise
-      .then((result) => {
-        useToastStore.getState().removeToast(id);
-        useToastStore.getState().addToast({
-          type: 'success',
-          title: messages.success,
-          duration: duration ?? 5000,
-        });
-        return result;
-      })
-      .catch((error) => {
-        useToastStore.getState().removeToast(id);
-        useToastStore.getState().addToast({
-          type: 'error',
-          title: messages.error,
-          message: error instanceof Error ? error.message : undefined,
-          duration: 8000,
-        });
-        throw error;
-      });
-  },
-
-  dismiss: (id: string) => useToastStore.getState().removeToast(id),
-
-  clearAll: () => useToastStore.getState().clearAll(),
-};
+import { useToastStore, type Toast } from '@/stores/toastStore';
 
 // ============================================================================
 // ICONS & STYLES
@@ -167,7 +39,7 @@ interface ToastItemProps {
 
 function ToastItem({ toast, onRemove, index }: ToastItemProps) {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<number>(Date.now());
+  const startTimeRef = useRef<number>(0);
   const remainingRef = useRef<number>(toast.duration);
   const isPausedRef = useRef(false);
 
@@ -187,6 +59,7 @@ function ToastItem({ toast, onRemove, index }: ToastItemProps) {
 
   // Start timer on mount
   useEffect(() => {
+    startTimeRef.current = Date.now();
     startTimer();
     return () => clearTimer();
   }, [startTimer, clearTimer]);
@@ -210,7 +83,6 @@ function ToastItem({ toast, onRemove, index }: ToastItemProps) {
   }, [clearTimer, onRemove, toast.id]);
 
   const Icon = icons[toast.type];
-  const progress = 100;
 
   return (
     <motion.div

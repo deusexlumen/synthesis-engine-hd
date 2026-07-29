@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, Plus, Calendar, Tag, Lock, Unlock,
+  Search, Plus, Calendar, Tag,
   ChevronRight, Filter, BookOpen, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -54,10 +54,6 @@ export const JournalList: React.FC<JournalListProps> = ({
   const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
   const [allTags, setAllTags] = useState<string[]>([]);
 
-  useEffect(() => {
-    loadEntries();
-  }, []);
-
   const loadEntries = async () => {
     try {
       setLoading(true);
@@ -77,6 +73,13 @@ export const JournalList: React.FC<JournalListProps> = ({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // Defer so no setState runs synchronously in the effect body.
+    queueMicrotask(() => {
+      void loadEntries();
+    });
+  }, []);
 
   const filteredEntries = entries.filter((entry) => {
     const matchesSearch = 

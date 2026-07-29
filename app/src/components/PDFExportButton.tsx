@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, FileText, BookOpen, X, Check, Loader2 } from 'lucide-react';
-import { exportElementToPDF, generateFullReport, quickExportChart, type JournalEntry } from '../services/pdfExport';
+import { Download, FileText, BookOpen, Check, Loader2 } from 'lucide-react';
+import { generateFullReport, quickExportChart, type JournalEntry } from '../services/pdfExport';
 import { toast } from 'sonner';
 
 interface PDFExportButtonProps {

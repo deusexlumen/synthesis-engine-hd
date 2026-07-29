@@ -83,7 +83,7 @@ export function AISettings() {
         setTestResult('error');
         toast.error(`Verbindungsfehler: ${result.error}`);
       }
-    } catch (error) {
+    } catch {
       setTestResult('error');
       toast.error('Verbindungstest fehlgeschlagen');
     } finally {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import type { DailyTransit as TransitData } from '@/types/humanDesign';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -109,7 +109,7 @@ export const TransitDisplay: React.FC<TransitDisplayProps> = ({
   const [viewMode, setViewMode] = useState<'daily' | 'personal'>('daily');
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTransitData = async (date: Date) => {
+  const fetchTransitData = useCallback(async (date: Date) => {
     try {
       setLoading(true);
       setError(null);
@@ -128,11 +128,16 @@ export const TransitDisplay: React.FC<TransitDisplayProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [natalGates]);
 
   useEffect(() => {
-    fetchTransitData(selectedDate);
-  }, [selectedDate, natalGates]);
+    let cancelled = false;
+    // Defer so no setState runs synchronously in the effect body.
+    queueMicrotask(() => {
+      if (!cancelled) void fetchTransitData(selectedDate);
+    });
+    return () => { cancelled = true; };
+  }, [selectedDate, fetchTransitData]);
 
   const navigateDay = (direction: 'prev' | 'next') => {
     const newDate = new Date(selectedDate);

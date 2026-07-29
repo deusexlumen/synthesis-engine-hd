@@ -33,13 +33,13 @@ export const JournalSection: React.FC<JournalSectionProps> = ({ className = '' }
     setView('edit');
   }, []);
 
-  const handleSave = useCallback((entry: JournalEntry) => {
+  const handleSave = useCallback(() => {
     setRefreshKey(prev => prev + 1);
     setView('list');
     setSelectedEntry(undefined);
   }, []);
 
-  const handleDelete = useCallback((id: string) => {
+  const handleDelete = useCallback(() => {
     setRefreshKey(prev => prev + 1);
     setView('list');
     setSelectedEntry(undefined);

@@ -22,7 +22,7 @@ import {
   Orbit
 } from 'lucide-react';
 import { BodyGraphResponsive } from '@/components/BodyGraphResponsive';
-import { ResultsDashboardSkeleton, StatsCardSkeleton } from '@/components/Skeleton';
+import { ResultsDashboardSkeleton } from '@/components/Skeleton';
 import { NumerologyChart } from '@/components/NumerologyChart';
 import { AICoaching } from '@/components/AICoaching';
 import { EmptyState } from '@/components/EmptyState';

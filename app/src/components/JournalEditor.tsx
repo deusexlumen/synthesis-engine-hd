@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  Save, Lock, Unlock, Trash2, Calendar, Clock,
-  ChevronLeft, MoreVertical, Sparkles, Shield
+  Save, Lock, Trash2, Calendar,
+  ChevronLeft, Sparkles, Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,15 +69,11 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showTagInput, setShowTagInput] = useState(false);
   const [newTag, setNewTag] = useState('');
-  const [wordCount, setWordCount] = useState(0);
-  const [charCount, setCharCount] = useState(0);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  useEffect(() => {
-    const words = content.trim().split(/\s+/).filter(w => w.length > 0).length;
-    setWordCount(words);
-    setCharCount(content.length);
-  }, [content]);
+  // Derived from content on every render — no effect needed.
+  const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+  const charCount = content.length;
 
   const handleSave = useCallback(async () => {
     if (!title.trim() && !content.trim()) {

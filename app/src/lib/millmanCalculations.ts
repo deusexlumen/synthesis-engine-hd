@@ -40,16 +40,6 @@ function reduceNumber(num: number, allowMasters = true): number {
 }
 
 /**
- * Calculate sum of digits in a string
- */
-function sumDigits(str: string): number {
-  return str
-    .replace(/[^0-9]/g, '')
-    .split('')
-    .reduce((sum, digit) => sum + parseInt(digit, 10), 0);
-}
-
-/**
  * Calculate Pythagorean value of a name
  */
 function calculateNameValue(name: string): number {
@@ -71,13 +61,6 @@ function calculateNameValue(name: string): number {
  */
 function getVowels(name: string): string {
   return name.toLowerCase().replace(/[^aeiouäöü]/g, '');
-}
-
-/**
- * Get consonants from a name
- */
-function getConsonants(name: string): string {
-  return name.toLowerCase().replace(/[aeiouäöü\s]/g, '');
 }
 
 // ============================================================================
@@ -107,7 +90,7 @@ export function calculateMillmanProfile(input: CalculationInput): MillmanProfile
 
   // Destiny number (full birthdate sum)
   const fullDateSum = day + month + year;
-  let destinyNumber = reduceNumber(fullDateSum, true);
+  const destinyNumber = reduceNumber(fullDateSum, true);
 
   // Check for master number or karmic debt
   const hasMasterNumber = MASTER_NUMBERS.includes(destinyNumber);

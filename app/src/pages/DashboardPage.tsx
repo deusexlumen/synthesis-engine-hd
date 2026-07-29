@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/authStore';
-import { Sparkles, User, Settings, LogOut, ChevronRight } from 'lucide-react';
+import { Sparkles, User, LogOut, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function DashboardPage() {

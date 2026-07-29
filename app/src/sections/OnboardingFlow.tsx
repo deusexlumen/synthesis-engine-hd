@@ -30,6 +30,15 @@ import {
 type Step = 'welcome' | 'data' | 'confirm';
 
 // Open-Meteo Geocoding API — kostenlos, kein API-Key, kein Backend nötig
+interface OpenMeteoResult {
+  name: string;
+  admin1?: string;
+  country?: string;
+  latitude: number;
+  longitude: number;
+  timezone?: string;
+}
+
 async function searchLocationOpenMeteo(query: string): Promise<GeocodeResult[]> {
   if (query.length < 2) return [];
   const res = await fetch(
@@ -38,7 +47,7 @@ async function searchLocationOpenMeteo(query: string): Promise<GeocodeResult[]> 
   if (!res.ok) return [];
   const data = await res.json();
   if (!data.results) return [];
-  return data.results.map((r: any) => ({
+  return (data.results as OpenMeteoResult[]).map((r) => ({
     name: r.name + (r.admin1 ? `, ${r.admin1}` : '') + (r.country ? `, ${r.country}` : ''),
     latitude: r.latitude,
     longitude: r.longitude,
@@ -74,11 +83,11 @@ export function OnboardingFlow() {
 
   // Location search via Open-Meteo
   useEffect(() => {
-    if (locationQuery.length < 2) {
-      setLocationResults([]);
-      return;
-    }
     const timeoutId = setTimeout(async () => {
+      if (locationQuery.length < 2) {
+        setLocationResults([]);
+        return;
+      }
       if (searchAbortRef.current) searchAbortRef.current.abort();
       searchAbortRef.current = new AbortController();
       setIsSearching(true);

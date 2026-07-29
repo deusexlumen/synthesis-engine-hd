@@ -44,9 +44,9 @@ export function ProcessingAnimation() {
         setProgress(100);
         setShowReveal(true);
         setTimeout(() => setStep('results'), 1800);
-      } catch (err: any) {
+      } catch (err) {
         console.error('Calculation error:', err);
-        setError(err?.message || 'Ein unerwarteter Fehler ist aufgetreten.');
+        setError(err instanceof Error ? err.message : 'Ein unerwarteter Fehler ist aufgetreten.');
       }
     };
 
@@ -66,7 +66,7 @@ export function ProcessingAnimation() {
     runCalculations();
 
     return () => clearInterval(phaseInterval);
-  }, [userData, setHDChart, setMillmanProfile, setStep]);
+  }, [userData, accessToken, setHDChart, setMillmanProfile, setStep]);
 
   // Error state
   if (error) {

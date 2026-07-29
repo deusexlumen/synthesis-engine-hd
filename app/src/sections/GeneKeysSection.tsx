@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { GeneKeysDisplay } from '../components/GeneKeysDisplay';
-import { Sparkles, BookOpen, Dna, Quote } from 'lucide-react';
+import { BookOpen, Dna, Quote } from 'lucide-react';
 import { calculateGeneKeyProfile } from '../lib/geneKeys';
 import { useHDChart } from '@/stores/appStore';
 

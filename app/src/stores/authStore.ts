@@ -250,7 +250,7 @@ export const useAuthStore = create<AuthState>()(
             });
 
             return true;
-          } catch (error) {
+          } catch {
             // Refresh failed, logout user
             set((state) => {
               state.user = null;
@@ -342,7 +342,7 @@ export const useAuthStore = create<AuthState>()(
           return userTierIndex >= requiredTierIndex;
         },
 
-        hasPermission: (permission) => {
+        hasPermission: () => {
           // Simplified: check if user has the permission
           // In a full implementation, this would check against a permissions list
           const user = get().user;

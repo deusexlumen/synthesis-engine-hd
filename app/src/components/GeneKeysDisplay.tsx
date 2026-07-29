@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   Sparkles, Sun, Moon, Star, Heart, Brain,
-  Zap, Globe, Compass, Gem, ChevronDown, ChevronUp,
-  Lightbulb, Quote, RotateCcw
+  Zap, Compass, Gem, ChevronDown, ChevronUp,
+  Lightbulb, Quote
 } from 'lucide-react';
 import { GeneKey, GeneKeyProfile, getGeneKey, getPearlSequence } from '../lib/geneKeys';
 

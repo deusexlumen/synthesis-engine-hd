@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { toast } from '@/components/Toast';
+import { toast } from '@/stores/toastStore';
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react';
 
 export function LoginForm() {
@@ -26,7 +26,7 @@ export function LoginForm() {
       await login(email, password);
       toast.success('Willkommen zurück!', 'Erfolgreich angemeldet');
       navigate('/dashboard');
-    } catch (err) {
+    } catch {
       toast.error('Anmeldung fehlgeschlagen', error || 'Bitte überprüfe deine Eingaben');
     }
   };

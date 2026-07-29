@@ -93,7 +93,9 @@ function Carousel({
 
   React.useEffect(() => {
     if (!api) return
-    onSelect(api)
+    // Defer the initial state sync so no setState happens synchronously in
+    // the effect body; subsequent updates arrive via embla's events.
+    queueMicrotask(() => onSelect(api))
     api.on("reInit", onSelect)
     api.on("select", onSelect)
 

@@ -8,7 +8,12 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/useAccessibility';
 
-interface AccessibleButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+// onDrag/onAnimationStart etc. collide with framer-motion's own handler
+// types when spread onto motion.button, so they are omitted here.
+interface AccessibleButtonProps extends Omit<
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+  'onDrag' | 'onDragStart' | 'onDragEnd' | 'onAnimationStart' | 'onAnimationEnd' | 'onAnimationIteration'
+> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
@@ -56,9 +61,8 @@ export const AccessibleButton = forwardRef<HTMLButtonElement, AccessibleButtonPr
       onClick?.(e);
     };
 
-    const MotionButton = motion.button as any;
     return (
-      <MotionButton
+      <motion.button
         ref={ref}
         onClick={handleClick}
         disabled={disabled || isLoading}
@@ -110,7 +114,7 @@ export const AccessibleButton = forwardRef<HTMLButtonElement, AccessibleButtonPr
             {rightIcon}
           </>
         )}
-      </MotionButton>
+      </motion.button>
     );
   }
 );

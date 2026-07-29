@@ -37,6 +37,7 @@ model User {
   roles              UserRole[]
   subscription       Subscription?
   auditLogs          AuditLog[]
+  journalEntries     JournalEntry[]
   
   @@index([email])
   @@index([status])
@@ -446,6 +447,25 @@ model DailyCoaching {
   
   @@unique([userId, date])
   @@index([userId, date])
+}
+
+// ============================================================
+// 8. JOURNAL ENTRIES
+// ============================================================
+model JournalEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title     String   @db.VarChar(200)
+  content   String   @db.Text
+  mood      String?  @db.VarChar(50)
+  tags      String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
 }
 
 // ============================================================

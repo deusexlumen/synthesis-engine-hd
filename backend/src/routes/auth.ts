@@ -7,6 +7,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authService, rbacService, subscriptionService, hashToken } from '../services/auth';
+import { sendPasswordResetEmail, sendVerificationEmail } from '../services/email';
 import { authenticate } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authLimiter } from '../middleware/rateLimit';
@@ -56,7 +57,15 @@ router.post(
   asyncHandler(async (req, res) => {
     const data = registerSchema.parse(req.body);
     
-    const { user, tokens } = await authService.register(data, req);
+    const { user, tokens, emailVerifyToken } = await authService.register(data, req);
+
+    // Send the verification email. Failure must not abort registration —
+    // the user can request a new verification mail later.
+    try {
+      await sendVerificationEmail(user.email, emailVerifyToken);
+    } catch (error) {
+      console.error('Failed to send verification email:', error);
+    }
 
     // Set refresh token as httpOnly cookie
     res.cookie('refreshToken', tokens.refreshToken, {
@@ -242,10 +251,15 @@ router.post(
     
     const resetToken = await authService.requestPasswordReset(email);
 
-    // In production, send email with reset link
-    // Token is logged server-side only for local debugging
-    if (process.env.NODE_ENV === 'development' && resetToken) {
-      console.log(`Password reset token for ${email}: ${resetToken}`);
+    // Send the reset link via the email service (Resend, or console
+    // fallback in dev). Failures are logged but never surfaced — the
+    // response must stay uniform so registered emails can't be probed.
+    if (resetToken) {
+      try {
+        await sendPasswordResetEmail(email.toLowerCase(), resetToken);
+      } catch (error) {
+        console.error('Failed to send password reset email:', error);
+      }
     }
 
     // Always return success (don't reveal if email exists)

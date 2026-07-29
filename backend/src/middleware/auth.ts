@@ -4,7 +4,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { verifyAccessToken, rbacService } from '../services/auth';
+import { verifyAccessToken } from '../services/auth';
 
 // ============================================================================
 // TYPES
@@ -132,64 +132,6 @@ export function requireRole(role: string) {
       res.status(403).json({
         success: false,
         error: `Required role: ${role}`,
-      });
-      return;
-    }
-
-    next();
-  };
-}
-
-/**
- * Require any of the specified roles
- */
-export function requireAnyRole(roles: string[]) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        error: 'Authentication required',
-      });
-      return;
-    }
-
-    const hasRole = roles.some((role) => req.user!.roles.includes(role));
-
-    if (!hasRole) {
-      res.status(403).json({
-        success: false,
-        error: `Required one of roles: ${roles.join(', ')}`,
-      });
-      return;
-    }
-
-    next();
-  };
-}
-
-/**
- * Require specific permission
- */
-export function requirePermission(resource: string, action: string) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        error: 'Authentication required',
-      });
-      return;
-    }
-
-    const hasPermission = await rbacService.hasPermission(
-      req.user.userId,
-      resource,
-      action
-    );
-
-    if (!hasPermission) {
-      res.status(403).json({
-        success: false,
-        error: `Permission denied: ${resource}:${action}`,
       });
       return;
     }

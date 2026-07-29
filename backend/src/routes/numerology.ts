@@ -1,36 +1,27 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
+import { calculateMillmanProfile } from '../services/millmanCalculator';
 
 const router: Router = Router();
 
+// The client sends only the raw inputs; the profile is computed server-side
+// (same algorithm as the frontend's millmanCalculations.ts) and the server
+// values are persisted — client-computed profiles are never trusted (M13).
 const saveNumerologySchema = z.object({
-  lifePathString: z.string(),
-  root1: z.number().int(),
-  root2: z.number().int(),
-  baseSum: z.number().int(),
-  destinyNumber: z.number().int(),
-  hasMasterNumber: z.boolean(),
-  hasZeroEnhancer: z.boolean(),
-  soulUrgeString: z.string().optional(),
-  expressionString: z.string().optional(),
-  personalYear: z.number().int(),
-  challenges: z.array(z.object({
-    ageRange: z.string(),
-    challengeNumber: z.number().int(),
-  })),
-  pinnacles: z.array(z.object({
-    ageRange: z.string(),
-    pinnacleNumber: z.number().int(),
-  })),
+  fullName: z.string().min(1).max(100),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'birthDate must be YYYY-MM-DD'),
 });
 
 // Save Numerology profile
 router.post('/save', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const data = saveNumerologySchema.parse(req.body);
+  const input = saveNumerologySchema.parse(req.body);
   const userId = req.user!.userId;
+
+  const data = calculateMillmanProfile(input);
 
   // Delete existing profile if any
   await prisma.millmanProfile.deleteMany({
@@ -42,6 +33,8 @@ router.post('/save', authenticate, asyncHandler(async (req: AuthenticatedRequest
     data: {
       userId,
       ...data,
+      challenges: data.challenges as unknown as Prisma.InputJsonValue,
+      pinnacles: data.pinnacles as unknown as Prisma.InputJsonValue,
     },
   });
 

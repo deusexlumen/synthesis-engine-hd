@@ -1,0 +1,193 @@
+/**
+ * Millman Numerology Calculator (server-side)
+ *
+ * Ported 1:1 from app/src/lib/millmanCalculations.ts so the /api/numerology/save
+ * route can persist server-computed values instead of trusting a
+ * client-calculated profile (audit finding M13). Pure math, no I/O.
+ * Based on Dan Millman's "The Life You Were Born to Live".
+ */
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export interface Challenge {
+  ageRange: string;
+  challengeNumber: number;
+}
+
+export interface Pinnacle {
+  ageRange: string;
+  pinnacleNumber: number;
+}
+
+export interface MillmanProfileResult {
+  lifePathString: string;
+  root1: number;
+  root2: number;
+  baseSum: number;
+  destinyNumber: number;
+  hasMasterNumber: boolean;
+  hasZeroEnhancer: boolean;
+  soulUrgeString?: string;
+  expressionString?: string;
+  challenges: Challenge[];
+  pinnacles: Pinnacle[];
+  personalYear: number;
+}
+
+export interface MillmanCalculationInput {
+  fullName: string;
+  birthDate: string; // YYYY-MM-DD
+}
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const MASTER_NUMBERS = [11, 22, 33, 44];
+const KARMIC_DEBT_NUMBERS = [13, 14, 16, 19];
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Reduce a number to a single digit (1-9), unless a master number (11, 22,
+ * 33, 44) is reached — including partway through the reduction, not just
+ * as the original input. E.g. 1993 -> 1+9+9+3 = 22 must stop at 22, not
+ * reduce further to 4.
+ */
+function reduceNumber(num: number, allowMasters = true): number {
+  if (num === 0) return 0;
+
+  let sum = num;
+  while (sum > 9) {
+    if (allowMasters && MASTER_NUMBERS.includes(sum)) {
+      return sum;
+    }
+    sum = String(sum)
+      .split('')
+      .reduce((acc, digit) => acc + parseInt(digit, 10), 0);
+  }
+
+  return sum;
+}
+
+/**
+ * Calculate Pythagorean value of a name
+ */
+function calculateNameValue(name: string): number {
+  const letterValues: Record<string, number> = {
+    a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8, i: 9,
+    j: 1, k: 2, l: 3, m: 4, n: 5, o: 6, p: 7, q: 8, r: 9,
+    s: 1, t: 2, u: 3, v: 4, w: 5, x: 6, y: 7, z: 8,
+    ä: 1, ö: 2, ü: 3, ß: 4,
+  };
+
+  return name
+    .toLowerCase()
+    .split('')
+    .reduce((sum, char) => sum + (letterValues[char] || 0), 0);
+}
+
+/**
+ * Get vowels from a name
+ */
+function getVowels(name: string): string {
+  return name.toLowerCase().replace(/[^aeiouäöü]/g, '');
+}
+
+// ============================================================================
+// MAIN CALCULATION
+// ============================================================================
+
+export function calculateMillmanProfile(input: MillmanCalculationInput): MillmanProfileResult {
+  const [year, month, day] = input.birthDate.split('-').map(Number);
+
+  // Life Path calculation (Dan Millman method)
+  const daySum = reduceNumber(day, true);
+  const monthSum = reduceNumber(month, true);
+  const yearSum = reduceNumber(year, true);
+
+  // Root numbers
+  const root1 = daySum;
+  const root2 = monthSum;
+  const baseSum = reduceNumber(root1 + root2 + yearSum, true);
+
+  // Life path string
+  const lifePathString = `${root1}-${root2}-${baseSum}`;
+
+  // Destiny number (full birthdate sum)
+  const fullDateSum = day + month + year;
+  const destinyNumber = reduceNumber(fullDateSum, true);
+
+  // Check for master number or karmic debt
+  const hasMasterNumber = MASTER_NUMBERS.includes(destinyNumber);
+  const hasZeroEnhancer = KARMIC_DEBT_NUMBERS.includes(destinyNumber);
+
+  // Soul Urge (vowels in name)
+  const vowels = getVowels(input.fullName);
+  const soulUrgeValue = calculateNameValue(vowels);
+  const soulUrgeNumber = reduceNumber(soulUrgeValue, true);
+
+  // Expression (all letters in name)
+  const expressionValue = calculateNameValue(input.fullName);
+  const expressionNumber = reduceNumber(expressionValue, true);
+
+  // Challenges
+  const challenges: Challenge[] = [
+    {
+      ageRange: 'Geburt - 30/35',
+      challengeNumber: Math.abs(root1 - root2) || 0,
+    },
+    {
+      ageRange: '30/35 - 55/60',
+      challengeNumber: Math.abs(root1 - baseSum) || 0,
+    },
+    {
+      ageRange: '55/60 - Lebensende',
+      challengeNumber: Math.abs(root2 - baseSum) || 0,
+    },
+  ];
+
+  // Pinnacles
+  const pinnacles: Pinnacle[] = [
+    {
+      ageRange: '0 - 36',
+      pinnacleNumber: reduceNumber(root1 + root2, true),
+    },
+    {
+      ageRange: '36 - 45',
+      pinnacleNumber: reduceNumber(root1 + yearSum, true),
+    },
+    {
+      ageRange: '45 - 54',
+      pinnacleNumber: reduceNumber(root2 + yearSum, true),
+    },
+    {
+      ageRange: '54+',
+      pinnacleNumber: reduceNumber(daySum + monthSum + yearSum, true),
+    },
+  ];
+
+  // Personal Year
+  const currentYear = new Date().getFullYear();
+  const personalYearSum = day + month + currentYear;
+  const personalYear = reduceNumber(personalYearSum, false);
+
+  return {
+    lifePathString,
+    root1,
+    root2,
+    baseSum,
+    destinyNumber,
+    hasMasterNumber,
+    hasZeroEnhancer,
+    soulUrgeString: soulUrgeNumber ? `${soulUrgeValue}/${soulUrgeNumber}` : undefined,
+    expressionString: expressionNumber ? `${expressionValue}/${expressionNumber}` : undefined,
+    challenges,
+    pinnacles,
+    personalYear,
+  };
+}

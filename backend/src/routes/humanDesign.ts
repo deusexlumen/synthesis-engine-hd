@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import type { EnergyType, Authority, CenterName, Planet, Prisma } from '@prisma/client';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate, optionalAuth, requireRole } from '../middleware/auth';
 import { Request } from 'express';
@@ -25,45 +26,11 @@ const calculateSchema = z.object({
   timezone: z.number().min(-14).max(14),
 });
 
-// Mirrors the Prisma enums exactly — a value outside this set now fails
-// validation with a 400 instead of reaching Prisma and throwing a 500.
-const PLANET_ENUM = z.enum([
-  'SUN', 'EARTH', 'NORTH_NODE', 'SOUTH_NODE', 'MOON', 'MERCURY', 'VENUS',
-  'MARS', 'JUPITER', 'SATURN', 'URANUS', 'NEPTUNE', 'PLUTO',
-]);
-const CENTER_NAME_ENUM = z.enum([
-  'HEAD', 'AJNA', 'THROAT', 'G_CENTER', 'HEART', 'SACRAL', 'ROOT', 'SPLEEN', 'SOLAR_PLEXUS',
-]);
-
+// Save requests carry only the birth data; the chart is recomputed
+// server-side (same code path as /calculate) and the server values are
+// persisted — client-computed charts are never trusted (M13).
 const saveHDSchema = z.object({
-  energyType: z.enum(['MANIFESTOR', 'GENERATOR', 'MANIFESTING_GENERATOR', 'PROJECTOR', 'REFLECTOR']),
-  authority: z.enum(['EMOTIONAL', 'SACRAL', 'SPLENIC', 'EGO', 'SELF_PROJECTED', 'MENTAL', 'LUNAR']),
-  profileLine1: z.number().int().min(1).max(6),
-  profileLine2: z.number().int().min(1).max(6),
-  incarnationCross: z.string(),
-  definedCenters: z.array(CENTER_NAME_ENUM),
-  undefinedCenters: z.array(CENTER_NAME_ENUM),
-  gates: z.array(z.object({
-    number: z.number().int().min(1).max(64),
-    line: z.number().int().min(1).max(6),
-    color: z.number().int().min(1).max(6),
-    tone: z.number().int().min(1).max(6),
-    base: z.number().int().min(1).max(5),
-    planet: PLANET_ENUM,
-    isDesign: z.boolean(),
-  })),
-  channels: z.array(z.object({
-    gate1: z.number().int().min(1).max(64),
-    gate2: z.number().int().min(1).max(64),
-  })),
-  variables: z.object({
-    digestion: z.string(),
-    environment: z.string(),
-    awareness: z.string(),
-    motivation: z.string(),
-    sense: z.string(),
-    style: z.string(),
-  }),
+  birthData: calculateSchema,
 });
 
 // ============================================================================
@@ -108,10 +75,14 @@ router.post('/calculate', hdCalculateLimiter, optionalAuth, asyncHandler(async (
 // OTHER ENDPOINTS
 // ============================================================================
 
-// Save Human Design chart
+// Save Human Design chart. Only birth data is accepted; the chart itself is
+// computed server-side so a client can't persist arbitrary, inconsistent
+// profile values (M13).
 router.post('/save', authenticate, asyncHandler(async (req: Request, res) => {
-  const data = saveHDSchema.parse(req.body);
+  const { birthData } = saveHDSchema.parse(req.body);
   const userId = req.user!.userId;
+
+  const chart = calculateHumanDesignChart(birthData);
 
   // Wrapped in a transaction: if `create` fails validation or hits a
   // constraint, the prior profile (just deleted) is rolled back instead
@@ -122,31 +93,31 @@ router.post('/save', authenticate, asyncHandler(async (req: Request, res) => {
     return tx.humanDesignProfile.create({
       data: {
         userId,
-        energyType: data.energyType,
-        authority: data.authority,
-        profileLine1: data.profileLine1,
-        profileLine2: data.profileLine2,
-        incarnationCross: data.incarnationCross,
-        variables: data.variables,
+        energyType: chart.energyType as EnergyType,
+        authority: chart.authority as Authority,
+        profileLine1: chart.profileLine1,
+        profileLine2: chart.profileLine2,
+        incarnationCross: chart.incarnationCross,
+        variables: chart.variables as unknown as Prisma.InputJsonValue,
         centers: {
-          create: data.definedCenters.map(name => ({
-            name,
+          create: chart.definedCenters.map(name => ({
+            name: name as CenterName,
             isDefined: true,
           })),
         },
         gates: {
-          create: data.gates.map(g => ({
+          create: chart.gates.map(g => ({
             gateNumber: g.number,
             line: g.line,
             color: g.color,
             tone: g.tone,
             base: g.base,
-            planet: g.planet,
+            planet: g.planet as Planet,
             isDesign: g.isDesign,
           })),
         },
         channels: {
-          create: data.channels,
+          create: chart.channels,
         },
       },
     });

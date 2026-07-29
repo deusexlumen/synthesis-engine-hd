@@ -1,21 +1,22 @@
 # BUXE_OS v24.X — Monetarisierungs-Plan: Synthesis Engine Web
 
 ## Kern-These
-Web-App = SaaS-Modell mit Subscription-Tiers. Tauri-Desktop bleibt als "Privacy-Premium" Add-on für Power-User.
+Web-App = SaaS-Modell mit Subscription-Tiers. (Die frühere Tauri-Desktop-Variante als "Privacy-Premium" Add-on existiert nicht mehr — das Projekt ist Web-only.)
 
-## Subscription-Tiers (bereits im Code angelegt)
+## Subscription-Tiers (Enum in `backend/prisma/schema.prisma`)
 
-| Feature | FREE | SOUL_SYNC_PREMIUM | PRO |
-|---------|------|-------------------|-----|
-| HD-Chart (Basis) | ✅ 1x | ✅ unlimited | ✅ unlimited |
-| Transit-Tages-Impuls | ✅ | ✅ | ✅ |
-| KI-Synthese (Basis) | ❌ | ✅ 20/Monat | ✅ unlimited |
-| Coaching-Impulse | ❌ | ✅ 10/Monat | ✅ unlimited |
-| Transit-Zeitraum-Vergleich | ❌ | ❌ | ✅ |
-| PDF-Export | ❌ | ✅ | ✅ |
-| Desktop-App (Tauri) | ❌ | ❌ | ✅ |
-| API-Zugriff | ❌ | ❌ | ✅ |
-| Preis (Ziel) | 0€ | ~9,99€/Monat | ~29,99€/Monat |
+| Feature | FREE | BASIC | PREMIUM | PRO |
+|---------|------|-------|---------|-----|
+| HD-Chart (Basis) | ✅ 1x | ✅ unlimited | ✅ unlimited | ✅ unlimited |
+| Transit-Tages-Impuls | ✅ | ✅ | ✅ | ✅ |
+| KI-Synthese (Basis) | ❌ | ✅ 5/Monat | ✅ 20/Monat | ✅ unlimited |
+| Coaching-Impulse | ❌ | ❌ | ✅ 10/Monat | ✅ unlimited |
+| Transit-Zeitraum-Vergleich | ❌ | ❌ | ❌ | ✅ |
+| PDF-Export | ❌ | ✅ | ✅ | ✅ |
+| API-Zugriff | ❌ | ❌ | ❌ | ✅ |
+| Preis (Ziel) | 0€ | ~4,99€/Monat | ~9,99€/Monat | ~29,99€/Monat |
+
+> Die Tier-Namen entsprechen dem Prisma-Enum `SubscriptionTier` (FREE, BASIC, PREMIUM, PRO). Die frühere Bezeichnung `SOUL_SYNC_PREMIUM` wurde auf `PREMIUM` vereinheitlicht. BASIC ist im Schema angelegt, das konkrete Feature-Set/der Preis ist noch offen.
 
 ## Technische Architektur für Web-Monetarisierung
 
@@ -44,11 +45,11 @@ Web-App = SaaS-Modell mit Subscription-Tiers. Tauri-Desktop bleibt als "Privacy-
 ```
 
 ### 5. HD-Berechnungen im Web-Modus
-Für Web-Monetarisierung müssen HD-Berechnungen ans Backend:
-- **Datenschutz-Lösung**: Berechnung im Backend, aber keine Speicherung von Geburtsdaten
+HD-Berechnungen laufen inzwischen vollständig im Backend (`humanDesignCalculator.ts` + `sweph`):
+- **Datenschutz-Policy**: Berechnung im Backend; gespeichert werden die berechneten Profile/Charts, keine Roh-Geburtsdaten als Dauerzustand
 - **Audit-Log**: Nur Ergebnisse speichern, keine Rohdaten
-- **DSGVO-konform**: Datenverarbeitung nur auf Anfrage, keine persistierten Geburtsdaten
-- **Alternative**: WASM-Module im Browser (swisseph zu WASM kompilieren) → höchste Privatsphäre, aber komplexer
+- **DSGVO**: Datenschutzerklärung muss die serverseitige Verarbeitung korrekt beschreiben
+- **Offen**: WASM-Module im Browser (swisseph zu WASM kompilieren) wären die privatsphäre-stärkste Option, aber deutlich komplexer — aktuell nicht geplant
 
 ### 6. Deployment-Pipeline
 1. GitHub → GitHub Actions → Docker Build
@@ -56,18 +57,18 @@ Für Web-Monetarisierung müssen HD-Berechnungen ans Backend:
 3. Prisma Migration im Container-Start
 4. Health-Check bestätigt Readiness
 
-## Nächste Schritte (nach Tauri-Demo)
+## Nächste Schritte
 1. [ ] Stripe-Account erstellen + Produkte anlegen
 2. [ ] Backend: Subscription-Webhook-Handler implementieren
 3. [ ] Frontend: Pricing-Page + Stripe Checkout Integration
-4. [ ] Backend: HD-Berechnungs-Endpunkt wiederherstellen (mit No-Persist-Policy)
+4. [x] Backend: HD-Berechnungs-Endpunkt (läuft, siehe `backend/src/routes/humanDesign.ts`)
 5. [ ] Supabase/Railway PostgreSQL einrichten
-6. [ ] Deploy auf Render/Railway
+6. [ ] Deploy auf Render/Railway (beim ersten Deploy: `prisma migrate deploy`)
 7. [ ] Domain + SSL (Cloudflare)
 8. [ ] Analytics (Plausible oder PostHog)
 
-## Quick-Start für Dev-Preview (heute)
+## Quick-Start für Dev-Preview
 - Backend + Frontend auf Render deployen
 - Supabase PostgreSQL als DB
 - `VITE_API_URL` auf Render-Backend-URL setzen
-- `npm run build && npm run preview` → Tunnel oder direkt Render static
+- `pnpm build && pnpm preview` → Tunnel oder direkt Render static

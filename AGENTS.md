@@ -5,17 +5,17 @@
 
 ## Projekt-Übersicht
 
-**Synthesis Engine** ist eine Full-Stack-Anwendung zur Synthese von Human Design, Gene Keys und Dan Millman Numerologie mit KI-gestützter Kreuzkorrelationsanalyse.
+**Synthesis Engine** ist eine Web-Anwendung zur Synthese von Human Design, Gene Keys und Dan Millman Numerologie mit KI-gestützter Kreuzkorrelationsanalyse.
 
-> Unterstützt sowohl Web-Deployment (React + Vite + Node.js) als auch Desktop-Builds (Tauri v2 mit Rust-Core).
+> **Architektur: Web-only.** React + Vite Frontend (`app/`) spricht per HTTP/REST mit einem Node.js/Express + Prisma Backend (`backend/`). Sämtliche Berechnungen (Human Design, Numerologie, Transits) laufen serverseitig im Backend. Die frühere Desktop-Variante (Tauri v2 / Rust-Core) wurde vollständig entfernt — es gibt kein `app/src-tauri` mehr.
 
 ### Kernfunktionen
-- **Human Design Berechnungen**: BodyGraph (9 Zentren), Energie-Typ, Autorität, Profil (1-6 Linien), Tor-Aktivierungen (1-64), Kanal-Analyse, Variablen
+- **Human Design Berechnungen**: BodyGraph (9 Zentren), Energie-Typ, Autorität, Profil (1-6 Linien), Tor-Aktivierungen (1-64), Kanal-Analyse, Variablen — serverseitig via Swiss Ephemeris (`sweph`)
 - **Dan Millman Numerologie**: Lebensweg (z.B. 35/8), Wurzelzahlen, Meisterzahlen (11, 22), Null-Verstärker, Seelenweg (Vokale), Berufsweg (Konsonanten), Herausforderungen, Höhepunkte, Persönliches Jahr
 - **Gene Keys**: 64 Gene Keys mit Schatten, Gabe und Siddhi
 - **Planetare Transits**: Tägliche Planetenpositionen und Vergleich mit Natal-Chart
-- **KI-Synthese**: OpenAI/Anthropic/Google AI Integration für personalisierte Analyse
-- **Verschlüsseltes Journal**: AES-256-GCM verschlüsselte Journal-Einträge (lokal gespeichert)
+- **KI-Synthese**: OpenAI/Anthropic/Google über den Backend-Proxy (`/api/ai/proxy`) — API-Keys verlassen das Backend nicht Richtung Browser-Provider-Calls
+- **Journal**: Serverseitig mit dem Konto verknüpft (`/api/journal`); ohne Konto (Gast-Modus) lokal im Browser. Bestehende lokale Einträge werden einmalig auf den Server migriert.
 - **PDF-Export**: Export von Charts und Reports
 
 ## Architektur
@@ -24,7 +24,7 @@
 
 ```
 synthesis-engine/
-├── app/                          # React + Tauri Frontend
+├── app/                          # React + Vite Frontend
 │   ├── src/
 │   │   ├── App.tsx              # Hauptkomponente mit React Router
 │   │   ├── main.tsx             # Entry Point (StrictMode, ErrorBoundary, AuthProvider)
@@ -32,9 +32,9 @@ synthesis-engine/
 │   │   │   ├── index.ts         # Legacy Re-exports
 │   │   │   └── humanDesign.ts   # Haupt-TypeScript Interfaces
 │   │   ├── sections/            # Seiten-Level Komponenten
-│   │   │   ├── OnboardingFlow.tsx       # 6-Schritt Onboarding
+│   │   │   ├── OnboardingFlow.tsx       # Onboarding
 │   │   │   ├── ProcessingAnimation.tsx  # "Cosmic Calculation"
-│   │   │   ├── ResultsDashboard.tsx     # Ergebnis-Anzeige
+│   │   │   ├── ResultsDashboard.tsx     # Ergebnis-Anzeige (Tabs)
 │   │   │   ├── AISettings.tsx           # KI-Konfiguration
 │   │   │   ├── GeneKeysSection.tsx
 │   │   │   ├── JournalSection.tsx
@@ -47,10 +47,11 @@ synthesis-engine/
 │   │   │       └── RegisterPage.tsx
 │   │   ├── stores/
 │   │   │   ├── appStore.ts      # Haupt-State mit Persistenz
-│   │   │   ├── aiConfigStore.ts # KI-Konfiguration
-│   │   │   └── authStore.ts     # Auth-State mit Persistenz
+│   │   │   ├── aiConfigStore.ts # KI-Konfiguration (API-Key wird NICHT persistiert)
+│   │   │   ├── authStore.ts     # Auth-State (Tokens werden NICHT persistiert)
+│   │   │   └── toastStore.ts
 │   │   ├── components/
-│   │   │   ├── ui/              # 50+ shadcn/ui Komponenten
+│   │   │   ├── ui/              # shadcn/ui Komponenten
 │   │   │   ├── auth/            # Auth-Komponenten (LoginForm, RegisterForm, etc.)
 │   │   │   ├── BodyGraph.tsx
 │   │   │   ├── NumerologyChart.tsx
@@ -59,72 +60,71 @@ synthesis-engine/
 │   │   │   ├── AICoaching.tsx
 │   │   │   ├── JournalEditor.tsx
 │   │   │   ├── JournalList.tsx
+│   │   │   ├── ErrorBoundary.tsx
 │   │   │   └── PDFExportButton.tsx
 │   │   ├── hooks/
-│   │   │   ├── use-mobile.ts
-│   │   │   └── useAccessibility.ts
 │   │   ├── lib/
 │   │   │   ├── utils.ts         # cn() Helper für Tailwind
-│   │   │   ├── tauri.ts         # Tauri/Web Abstraktionsschicht
-│   │   │   ├── api.ts           # API Client mit Retry-Logik
-│   │   │   ├── api-client.ts    # Legacy API Client
+│   │   │   ├── api.ts           # API Client mit Retry-Logik und Request-Cache
+│   │   │   ├── journalApi.ts    # Journal API Client (+ einmalige Migration lokaler Einträge)
 │   │   │   ├── geneKeys.ts      # Gene Keys Daten
-│   │   │   ├── millmanCalculations.ts
-│   │   │   ├── animations.ts
-│   │   │   └── calculations.test.ts
+│   │   │   └── millmanCalculations.ts
 │   │   └── services/
-│   │       └── pdfExport.ts     # PDF Export Logik
-│   ├── src-tauri/               # Rust Backend (Tauri v2)
-│   │   ├── Cargo.toml
-│   │   ├── tauri.conf.json
-│   │   └── src/
-│   │       ├── main.rs          # Tauri Commands & Cache
-│   │       ├── human_design.rs  # HD-Berechnungen
-│   │       ├── numerology.rs    # Millman-Algorithmus
-│   │       ├── transit.rs       # Transit-Berechnungen
-│   │       ├── geocoding.rs     # Open-Meteo Geocoding
-│   │       ├── ephemeris.rs     # Swiss Ephemeris Wrapper
-│   │       └── storage.rs       # AES-256-GCM Verschlüsselung
+│   │       └── pdfExport.ts     # PDF Export Logik (jsPDF + html2canvas)
+│   ├── e2e/
+│   │   └── smoke.spec.ts        # Playwright Smoke-Test (Kern-Nutzerpfad)
+│   ├── playwright.config.ts
+│   ├── vitest.config.ts
 │   ├── components.json          # shadcn/ui Konfiguration
-│   ├── tailwind.config.js       # Tailwind + Custom Theme
-│   ├── vite.config.ts           # Vite + Path Aliases
-│   ├── tsconfig.json            # Projekt-Referenzen
-│   ├── tsconfig.app.json        # App TSConfig
-│   ├── tsconfig.node.json       # Node TSConfig
-│   └── package.json
+│   ├── tailwind.config.js
+│   ├── vite.config.ts
+│   ├── tsconfig.json            # Projekt-Referenzen (app + node)
+│   └── package.json             # pnpm
 │
 ├── backend/                      # Node.js + Express API
 │   ├── src/
-│   │   ├── index.ts             # Express Server Setup
+│   │   ├── index.ts             # Express Server Setup (Graceful Shutdown, /health)
 │   │   ├── lib/
-│   │   │   └── prisma.ts        # Prisma Client Singleton
+│   │   │   ├── prisma.ts        # Prisma Client Singleton
+│   │   │   ├── logger.ts        # Pino Logging
+│   │   │   ├── ssrfGuard.ts     # SSRF-Schutz für Custom-AI-Provider
+│   │   │   └── cleanup.ts       # Periodische Aufräum-Jobs
 │   │   ├── routes/
 │   │   │   ├── auth.ts          # Authentifizierung (JWT)
 │   │   │   ├── humanDesign.ts   # HD API Endpunkte
 │   │   │   ├── numerology.ts    # Numerologie API
-│   │   │   ├── synthesis.ts     # KI-Synthese (OpenAI)
-│   │   │   ├── ai.ts            # AI Proxy
+│   │   │   ├── synthesis.ts     # KI-Synthese
+│   │   │   ├── ai.ts            # AI Proxy (OpenAI/Anthropic/Google, SSRF-geschützt)
 │   │   │   ├── transit.ts       # Transit API
-│   │   │   └── coaching.ts      # Coaching-Impulse
+│   │   │   ├── coaching.ts      # Coaching-Impulse
+│   │   │   └── journal.ts       # Journal API (serverseitig)
 │   │   ├── middleware/
 │   │   │   ├── auth.ts          # JWT Validation, RBAC, Tier-Checks
-│   │   │   └── errorHandler.ts  # asyncHandler, Zod Fehler
+│   │   │   ├── errorHandler.ts  # asyncHandler, Zod Fehler
+│   │   │   ├── rateLimit.ts     # Rate Limiter
+│   │   │   └── traceId.ts       # Request Trace IDs
 │   │   ├── services/
 │   │   │   ├── auth.ts          # Auth-Service (Register/Login/Refresh/RBAC)
-│   │   │   └── ephemeris.ts     # Swiss Ephemeris Service (sweph)
-│   │   └── tests/
-│   │       └── ephemeris.test.ts
+│   │   │   ├── ephemeris.ts     # Swiss Ephemeris Service (sweph)
+│   │   │   ├── humanDesignCalculator.ts  # HD Chart-Berechnung
+│   │   │   ├── hdConstants.ts   # HD Konstanten (Tore, Zentren, Kanäle)
+│   │   │   ├── millmanCalculator.ts      # Numerologie
+│   │   │   ├── aiProvider.ts    # KI-Provider Abstraktion
+│   │   │   ├── coaching.ts      # Coaching-Logik
+│   │   │   └── email.ts         # E-Mail-Versand (Resend)
+│   │   └── tests/               # Jest + Supertest (siehe Testing)
 │   ├── prisma/
 │   │   ├── schema.prisma        # Datenbank-Schema
-│   │   ├── seed.ts              # Seed-Skript
-│   │   └── migrations/          # Prisma Migrationen
+│   │   ├── seed.ts
+│   │   └── migrations/          # Handgeschriebene SQL-Migrationen
+│   ├── ephemeris/               # .se1 Ephemeris-Dateien
 │   ├── Dockerfile
-│   └── package.json
+│   └── package.json             # pnpm
 │
 ├── docs/                         # Projekt-Dokumentation
-│   ├── EPHEMERIS_IMPLEMENTATION_GUIDE.md
-│   ├── PROFESSIONAL_CALCULATIONS_SPEC.md
-│   ├── SWISS_EPHEMERIS_PROFESSIONAL_SETUP.md
+│   ├── EPHEMERIS_IMPLEMENTATION_GUIDE.md      # historisch (Tauri-Ära)
+│   ├── PROFESSIONAL_CALCULATIONS_SPEC.md      # historisch (Tauri-Ära)
+│   ├── SWISS_EPHEMERIS_PROFESSIONAL_SETUP.md  # historisch (Tauri-Ära)
 │   ├── SWISS_EPHEMERIS_SETUP_README.md
 │   └── TEST_REFERENCE_DATA.md
 │
@@ -134,13 +134,14 @@ synthesis-engine/
 │   └── ephemeris-checksums.sha256
 │
 ├── docker-compose.yml            # Docker Compose (Postgres, Redis, Backend)
+├── docker-compose.dev.yml        # Dev-Setup mit Hot-Reload
 ├── setup.sh / setup.ps1          # Projekt-Setup-Skripte
 └── AGENTS.md                     # Diese Datei
 ```
 
 ### Technologie-Stack
 
-#### Frontend (React + Tauri v2)
+#### Frontend (`app/`)
 | Komponente | Version | Zweck |
 |------------|---------|-------|
 | React | 19.2.0 | UI Framework |
@@ -150,128 +151,95 @@ synthesis-engine/
 | shadcn/ui | latest | UI Komponenten (Radix UI basiert) |
 | Framer Motion | 12.34.3 | Animationen |
 | Zustand | 5.0.11 | State Management (mit immer, persist) |
-| React Router DOM | 7.13.1 | Client-Side Routing |
-| Tauri | 2.10.x | Desktop-Wrapper |
-| Tauri API | 2.10.x | Frontend-Rust Bridge |
+| React Router | 8.3.0 | Client-Side Routing |
 | Vitest | 3.0.0 | Test Framework |
+| Playwright | 1.62.0 | E2E Tests |
 
-#### Backend (Node.js)
+#### Backend (`backend/`)
 | Komponente | Version | Zweck |
 |------------|---------|-------|
 | Express | 4.18.2 | API Server |
 | Prisma | 5.22.0 | ORM |
 | OpenAI | 4.20.0 | KI-Integration |
-| Supabase | 2.38.0 | Auth & Datenbank |
+| Supabase | 2.38.0 | Datenbank (PostgreSQL) |
 | Zod | 3.22.4 | Validierung |
 | Helmet | 7.1.0 | Security Headers |
 | express-rate-limit | 7.1.0 | Rate Limiting |
 | bcryptjs | 2.4.3 | Passwort-Hashing |
 | jsonwebtoken | 9.0.2 | JWT Tokens |
-| sweph | 2.10.3-b-1 | Swiss Ephemeris (Node.js) |
-| Jest | 29.7.0 | Test Framework |
-| ts-jest | 29.1.0 | TypeScript für Jest |
-
-#### Rust (Tauri Core)
-| Crate | Version | Zweck |
-|-------|---------|-------|
-| tauri | 2.0 | Framework |
-| tauri-plugin-fs | 2.0 | Dateisystem-Zugriff |
-| tauri-plugin-shell | 2.0 | Shell-Befehle |
-| libswe-sys | 0.2 | Swiss Ephemeris |
-| aes-gcm | 0.10 | AES-256-GCM Verschlüsselung |
-| argon2 | 0.5 | Passwort-Hashing |
-| chrono | 0.4 | Datums-/Zeit-Berechnungen |
-| reqwest | 0.11 | HTTP Client (Geocoding) |
-| serde | 1.0 | JSON-Serialisierung |
-| thiserror | 1.0 | Error Handling |
-| keyring | 2 | OS Keychain Integration |
+| sweph | 2.10.3-b-1 | Swiss Ephemeris (Node.js, **AGPL** — siehe Launch-Blocker) |
+| pino | 10.3.1 | Logging |
+| Jest | 30.4.2 | Test Framework |
+| Supertest | 7.2.2 | API Contract Tests |
+| ts-jest | 29.4.12 | TypeScript für Jest |
 
 ## Build und Entwicklung
 
+**Paketmanager ist pnpm** (beide Pakete haben `pnpm-lock.yaml`; npm/yarn nicht verwenden).
+
 ### Voraussetzungen
 - Node.js 20+
-- Rust 1.70+ (für Tauri)
-- PostgreSQL Datenbank (für Backend, via Supabase oder Docker)
+- pnpm 9+
+- PostgreSQL Datenbank (via Supabase oder Docker)
 
-### Frontend (App)
+### Frontend (`app/`)
 
 ```bash
 cd app
-npm install
+pnpm install
 
-# Web-Version (Vite Dev Server)
-npm run dev
-
-# Desktop-Version (Tauri)
-npm run tauri dev
-
-# Produktions-Build
-npm run build
-
-# Tests
-npm test                    # Vitest (vitest run)
+# Dev Server (Port 5173)
+pnpm dev
 
 # Linting
-npm run lint                # ESLint
+pnpm lint
+
+# Unit-Tests (Vitest)
+pnpm test
+
+# TypeScript-Projekt-Referenzen prüfen
+tsc -b
+
+# Produktions-Build (tsc -b && vite build)
+pnpm build
+
+# E2E (Playwright, 1 Smoke-Test)
+pnpm exec playwright test
 ```
 
-**Wichtige Scripts** (aus `app/package.json`):
-- `dev` - Vite Dev Server (Port 5173)
-- `build` - TypeScript Kompilierung + Vite Build
-- `lint` - ESLint mit TypeScript
-- `preview` - Vite Preview
-- `test` - Vitest Test-Runner
-- `tauri dev` - Tauri Development Mode
-- `tauri build` - Tauri Production Build
-
-### Backend (API)
+### Backend (`backend/`)
 
 ```bash
 cd backend
-npm install
+pnpm install
 
 # Environment Setup
 cp .env.example .env
-# .env mit Datenbank-Credentials anpassen
+# .env mit Datenbank-Credentials und Secrets anpassen
 
 # Entwicklung mit Hot-Reload
-npm run dev
+pnpm dev
 
-# Datenbank-Migrationen
-npx prisma generate
-npx prisma db push
-npx prisma migrate dev
-npx prisma studio
+# Typecheck ohne Emit
+tsc --noEmit
 
 # Tests
-npm test                    # Jest (einmalig)
-npm run test:watch          # Jest (Watch-Modus)
-npm run test:coverage       # Jest mit Coverage
+pnpm test                 # Jest (einmalig)
+pnpm run test:watch       # Jest (Watch-Modus)
+pnpm run test:coverage    # Jest mit Coverage
 
 # Produktions-Build
-npm run build
-npm start
+pnpm build
+pnpm start
 ```
 
-**Wichtige Scripts** (aus `backend/package.json`):
-- `dev` - ts-node-dev mit Hot-Reload
-- `build` - TypeScript Kompilierung
-- `start` - Node.js Server
-- `test` - Jest Test-Runner
-- `test:watch` - Jest im Watch-Modus
-- `test:coverage` - Jest mit Coverage-Report
-- `db:generate` - Prisma Client generieren
-- `db:push` - Schema zu DB pushen
-- `db:migrate` - Migration erstellen/ausführen
-- `db:studio` - Prisma Studio öffnen
+### Datenbank / Prisma
 
-### Rust (Tauri)
+Die Migrationen in `backend/prisma/migrations/` sind **handgeschriebene SQL-Migrationen** — sie wurden ohne Live-Datenbank erstellt. Konsequenzen:
 
-```bash
-cd app/src-tauri
-cargo build
-cargo test
-```
+- Lokal/CI: `pnpm exec prisma generate` reicht für Typen; Tests brauchen **keine** Datenbank (Prisma wird gemockt).
+- Beim ersten Deploy: `pnpm exec prisma migrate deploy` gegen die Ziel-DB ausführen.
+- `prisma migrate dev` nur verwenden, wenn tatsächlich eine Dev-DB läuft und eine neue Migration erzeugt werden soll.
 
 ### Docker (Gesamtes Projekt)
 
@@ -279,118 +247,15 @@ cargo test
 # PostgreSQL + Redis + Backend starten
 docker-compose up
 
-# Backend separat bilden
+# Dev-Setup mit Hot-Reload
+docker-compose -f docker-compose.dev.yml up
+
+# Backend-Image separat bauen
 cd backend
 docker build -t synthesis-backend .
 ```
 
-## Code-Organisation
-
-### Frontend Struktur
-
-```
-app/src/
-├── App.tsx              # Router mit Public/Protected Routes
-├── main.tsx             # Entry Point mit StrictMode, ErrorBoundary, AuthProvider
-├── types/
-│   ├── index.ts         # Re-exports (Legacy)
-│   └── humanDesign.ts   # Alle TypeScript Interfaces
-├── sections/            # Seiten-Level Komponenten
-│   ├── OnboardingFlow.tsx       # 6-Schritt Onboarding
-│   ├── ProcessingAnimation.tsx  # Lade-Animation
-│   ├── ResultsDashboard.tsx     # Haupt-Ergebnis-Anzeige
-│   ├── AISettings.tsx           # KI-Anbieter Konfiguration
-│   ├── GeneKeysSection.tsx
-│   ├── JournalSection.tsx
-│   ├── TransitSection.tsx
-│   └── SettingsSection.tsx
-├── pages/               # Route-Level Seiten
-│   ├── DashboardPage.tsx
-│   └── auth/
-│       ├── LoginPage.tsx
-│       └── RegisterPage.tsx
-├── stores/
-│   ├── appStore.ts      # Zustand Store mit Persistenz (localStorage)
-│   ├── aiConfigStore.ts # KI-Konfiguration (API-Key wird NIEMALS persistiert)
-│   └── authStore.ts     # Auth-State (Tokens werden NIEMALS persistiert)
-├── components/
-│   ├── ui/              # 50+ shadcn/ui Komponenten
-│   ├── auth/            # Auth-Guard, LoginForm, RegisterForm, etc.
-│   ├── BodyGraph.tsx    # SVG BodyGraph Visualisierung
-│   ├── NumerologyChart.tsx
-│   ├── GeneKeysDisplay.tsx
-│   ├── TransitDisplay.tsx
-│   ├── AICoaching.tsx
-│   ├── JournalEditor.tsx
-│   ├── JournalList.tsx
-│   └── PDFExportButton.tsx
-├── hooks/
-│   ├── use-mobile.ts
-│   └── useAccessibility.ts
-├── lib/
-│   ├── utils.ts         # cn() Helper für Tailwind
-│   ├── tauri.ts         # Tauri/Web Abstraktionsschicht (invokeSafe, isTauri)
-│   ├── api.ts           # API Client mit Retry-Logik und Fehlerbehandlung
-│   ├── api-client.ts    # Legacy API Client
-│   ├── geneKeys.ts      # Gene Keys Daten (64 Keys)
-│   ├── millmanCalculations.ts
-│   ├── animations.ts
-│   └── calculations.test.ts
-└── services/
-    └── pdfExport.ts     # PDF Export mit jsPDF + html2canvas
-```
-
-### Backend Struktur
-
-```
-backend/src/
-├── index.ts             # Express Server Setup mit Middleware
-├── lib/
-│   └── prisma.ts        # Prisma Client Singleton
-├── routes/
-│   ├── auth.ts          # JWT Auth (Register/Login/Refresh/Me)
-│   ├── humanDesign.ts   # HD Berechnungs-Endpunkte
-│   ├── numerology.ts    # Numerologie Endpunkte
-│   ├── synthesis.ts     # KI-Synthese mit OpenAI GPT-4o-mini
-│   ├── ai.ts            # AI Proxy für OpenAI/Anthropic/Google
-│   ├── transit.ts       # Transit-Endpunkte
-│   └── coaching.ts      # Coaching-Impulse
-├── middleware/
-│   ├── auth.ts          # JWT Validation, requireRole, requireTier, requirePermission
-│   └── errorHandler.ts  # asyncHandler, APIError, Zod Fehlerbehandlung
-├── services/
-│   ├── auth.ts          # Auth-Service (bcrypt, JWT, RBAC, Audit-Logging)
-│   └── ephemeris.ts     # Astronomische Berechnungen (sweph)
-└── tests/
-    └── ephemeris.test.ts
-```
-
-### Rust Struktur
-
-```
-app/src-tauri/src/
-├── main.rs              # Tauri Commands, CalculationCache (Mutex<HashMap>)
-├── human_design.rs      # HD Berechnungen (Swiss Ephemeris via ephemeris.rs)
-├── numerology.rs        # Millman Numerologie Algorithmus
-├── transit.rs           # Transit-Berechnungen
-├── geocoding.rs         # Open-Meteo Geocoding API
-├── ephemeris.rs         # Safe Wrapper für libswe-sys
-└── storage.rs           # AES-256-GCM Verschlüsselung, OS Keychain
-```
-
-#### Verfügbare Tauri Commands
-- `calculate_human_design` - HD Chart berechnen (mit Cache)
-- `calculate_numerology` - Millman Profil berechnen (mit Cache)
-- `save_journal_entry` - Verschlüsselten Journal-Eintrag speichern
-- `load_journal_entry` - Journal-Eintrag entschlüsseln
-- `list_journal_entries_command` - Alle Journal-Einträge auflisten
-- `delete_journal_entry_command` - Journal-Eintrag löschen
-- `search_location_command` - Ortsuche via Open-Meteo
-- `get_timezone_command` - Zeitzone ermitteln
-- `get_daily_transit` - Tägliche Transits berechnen
-- `get_today_transit_command` - Heutige Transits
-- `compare_transit_to_natal_command` - Transit vs Natal Vergleich
-- `trigger_haptic` - Haptic Feedback (Stub)
+**Hinweis Windows / sweph:** `sweph` ist ein natives Modul und braucht unter Windows Build-Tools (Visual Studio Build Tools / node-gyp). Die Backend-Tests nutzen deshalb einen Mock (`backend/src/__mocks__/sweph.ts`) und laufen auch ohne native Compilation. Im Docker-Image sind die nativen Build-Abhängigkeiten enthalten.
 
 ## Code Style Guidelines
 
@@ -423,46 +288,9 @@ app/src-tauri/src/
    - Dunkles Theme: `bg-[#020202]`
    - Akzentfarben: Purple-500 (`hsl(270 60% 40%)`), Blue-500
    - Glassmorphism: `bg-white/5 backdrop-blur-xl`
-   - Border Radius: `var(--radius)` basiert
    - CSS Variables für Theme-Farben (siehe `app/src/index.css`)
    - Serif-Font für Headlines: Cormorant Garamond
    - Sans-Font für Body: Inter
-
-6. **Abschnitts-Trenner**: Große Dateien verwenden `// ====` Header
-   ```typescript
-   // ============================================================================
-   // ACTIONS INTERFACE
-   // ============================================================================
-   ```
-
-### Rust
-
-1. **Error Handling**: Eigene Error-Typen mit `thiserror`
-   ```rust
-   #[derive(Debug)]
-   pub struct HDError { pub message: String }
-   impl std::fmt::Display for HDError { ... }
-   impl std::error::Error for HDError {}
-   ```
-
-2. **Serialisierung**: `serde` für JSON-Serialisierung
-   ```rust
-   #[derive(Debug, Clone, Serialize, Deserialize)]
-   pub struct HumanDesignChart { ... }
-   ```
-
-3. **Command Pattern**: Tauri Commands für Frontend-Integration
-   ```rust
-   #[tauri::command]
-   fn calculate_human_design(...) -> Result<HumanDesignChart, String>
-   ```
-
-4. **Cache-Management**: In-Memory Cache mit `Mutex<HashMap>`
-   ```rust
-   struct CalculationCache {
-       hd_cache: Mutex<std::collections::HashMap<String, HumanDesignChart>>,
-   }
-   ```
 
 ### Backend
 
@@ -483,67 +311,60 @@ app/src-tauri/src/
 
 ## Testing
 
-### Frontend (Vitest)
+Aktueller Stand: **app: 28 Tests (Vitest), backend: 134 Tests (Jest), 1 Playwright-Smoke-Test** — alle grün.
 
-Test-Dateien im Frontend:
+### Frontend (Vitest, `app/`)
+
 - `app/src/lib/calculations.test.ts` - HD Gate, Numerologie, Gene Keys, Transit Tests
-- `app/src/lib/tauri.test.ts` - Tauri Abstraktionsschicht Tests
+- `app/src/lib/journalApi.test.ts` - Journal API Client
 - `app/src/stores/aiConfigStore.test.ts` - Sicherheit: API-Key wird nicht persistiert
 - `app/src/stores/authStore.test.ts` - Sicherheit: Tokens werden nicht persistiert
 
 ```bash
 cd app
-npm test                    # vitest run
+pnpm test                    # vitest run
+pnpm exec playwright test    # E2E Smoke (app/e2e/smoke.spec.ts)
 ```
 
-### Backend (Jest)
+### Backend (Jest + Supertest, `backend/src/tests/`)
 
-Test-Dateien im Backend:
-- `backend/src/tests/ephemeris.test.ts` - Swiss Ephemeris Genauigkeitstests
+- `auth.test.ts` - Register/Login/Refresh/Logout, Tier-Gates, Token-Fälle
+- `humanDesign.test.ts`, `humanDesignCalculator.test.ts`, `humanDesignChart.e2e.test.ts` - HD-Berechnung inkl. Referenz-Chart
+- `humanDesignRateLimit.test.ts` - dedizierter Limiter für `/api/hd/calculate`
+- `ai.test.ts`, `ssrfGuard.test.ts` - AI Proxy, SSRF-Guard inkl. DNS-Resolution-Pfad (gemockter Resolver)
+- `coaching.test.ts`, `coachingRoutes.test.ts` - Coaching auf echten Transit-Daten
+- `journal.test.ts` - Journal-Endpunkte
+- `synthesis.test.ts`, `email.test.ts`, `ephemeris.test.ts` - Synthese, E-Mail-Service, Ephemeris-Genauigkeit
 
 ```bash
 cd backend
-npm test                    # jest
-npm run test:watch          # jest --watch
-npm run test:coverage       # jest --coverage
+pnpm test                    # jest
+pnpm run test:coverage       # jest --coverage
 ```
 
-### Rust (cargo test)
+**Ohne Datenbank lauffähig:** Prisma und `sweph` werden in Tests gemockt (`backend/src/__mocks__/`).
 
-```bash
-cd app/src-tauri
-cargo test
-```
-
-**Vorhandene Rust Tests**:
-- `test_encrypt_decrypt` - AES-256-GCM Verschlüsselung
-- `test_different_keys` - Verschlüsselung Key-Isolation
-
-## Sicherheit
+## Sicherheit & Datenschutz
 
 ### Authentifizierung & Autorisierung
 - **JWT**: Access Tokens (15 Minuten) + Refresh Tokens (7 Tage, httpOnly Cookie)
 - **RBAC**: Rollen-basierte Zugriffskontrolle (USER, ADMIN, SUPER_ADMIN)
-- **Permissions**: Granulare Berechtigungen (resource:action)
-- **Audit Logging**: Alle sicherheitsrelevanten Aktionen werden protokolliert
+- **Audit Logging**: Sicherheitsrelevante Aktionen werden protokolliert
 - **bcryptjs**: Passwort-Hashing mit 12 Salt Rounds
+- **Reset-/Verify-Tokens**: werden gehasht (SHA-256) in der DB gespeichert, Klartext nur per E-Mail
 - **Zod**: Input-Validierung an allen API-Endpunkten
 
-### Datenverschlüsselung
-- **Lokale Daten**: AES-256-GCM für Journal-Einträge
-- **Key Management**: OS Keychain (keyring crate) mit Datei-Fallback für Linux ohne Secret Service
-- **Geburtsdaten**: Bleiben lokal, werden nie an Cloud gesendet (außer deterministische Ergebnisse)
-
-### Frontend-Sicherheit
-- **API Keys**: Werden NIEMALS in localStorage persistiert (`aiConfigStore` partialize)
-- **Auth Tokens**: Werden NIEMALS in localStorage persistiert (`authStore` partialize)
-- **Error Boundaries**: `ErrorBoundary` Component in `main.tsx`
+### Datenverarbeitung (Wirklichkeit seit dem Web-Pivot)
+- **Geburtsdaten** werden zur Berechnung an das **eigene Backend** übertragen und dort serverseitig verarbeitet. Gespeichert werden die berechneten Profile/Charts (mit dem Konto verknüpft). Die frühere Aussage „Geburtsdaten verlassen das Gerät nie" stammte aus der Tauri-Ära und ist **nicht mehr gültig**.
+- **Journal**: Serverseitig gespeichert und mit dem Konto verknüpft. Im Gast-Modus (ohne Login) lokal im Browser (localStorage, unverschlüsselt). Beim ersten Login werden lokale Einträge einmalig migriert.
+- **KI-API-Keys**: Laufen über den Backend-Proxy (`/api/ai/proxy`). Das Frontend ruft keine Provider direkt auf; SSRF-Guard schützt Custom-Provider-Endpunkte.
+- **Frontend-Persistenz**: API-Keys und Auth-Tokens werden NIEMALS in localStorage persistiert (`partialize` in `aiConfigStore`/`authStore`).
 
 ### API Sicherheit
-- **Rate Limiting**: 100 Requests/Min (allgemein), 5/15min (Auth)
+- **Rate Limiting**: 100 Requests/Min (allgemein), 5/15min (Auth), 10/min dediziert für `/api/hd/calculate` (CPU-intensiv), Per-User-Limits für Synthesis/Coaching/Transit-Ranges
 - **Helmet**: Security Headers
-- **CORS**: Whitelist-basiert (`https://synthesis-engine.com`, `tauri://localhost`, localhost)
-- **CSP**: Content Security Policy in Tauri konfiguriert
+- **CORS**: Whitelist-basiert über `CORS_ORIGINS` (Default: `FRONTEND_URL`/localhost)
+- **Fehler**: `err.message`/Stack-Leak nur in `development`
 
 ### Environment Variablen (Backend)
 ```env
@@ -555,6 +376,9 @@ OPENAI_API_KEY=sk-...
 SUPABASE_URL=https://...
 SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
+RESEND_API_KEY=re_...
+EMAIL_FROM="Synthesis Engine <noreply@example.com>"
+FRONTEND_URL=http://localhost:5173
 PORT=3000
 NODE_ENV=development
 RATE_LIMIT_WINDOW_MS=60000
@@ -565,42 +389,25 @@ SE_EPHE_PATH=./ephemeris
 ### Environment Variablen (Frontend)
 ```env
 VITE_API_URL=http://localhost:3000
-VITE_ENABLE_ANALYTICS=false
-VITE_DEBUG_MODE=false
-VITE_APP_NAME="Synthesis Engine"
-VITE_APP_VERSION="1.0.0"
 ```
 
 ## Wichtige Konfigurationen
 
 ### Vite Config (`app/vite.config.ts`)
-- Base: `./` (für Desktop-Build)
 - Alias: `@/` → `./src`
 - Plugin: `kimi-plugin-inspect-react` für Debugging
 
 ### Tailwind Config (`app/tailwind.config.js`)
 - Dark Mode: `class`
 - CSS Variables für Theme (HSL-basiert)
-- Custom Animations (accordion, caret-blink)
 - shadcn/ui Integration
 
-### Tauri Config (`app/src-tauri/tauri.conf.json`)
-- Version: 2.0 Schema
-- Window: 1200x800, Dark Theme, center, decorations
-- CSP: Eingeschränkte Connect-Src (Supabase, OpenAI, Anthropic, Google, Open-Meteo)
-- Capabilities: fs:default, shell:default
-- Plugins: fs (scope: `$APP/*`, `$APP/journal/*`)
-
 ### TypeScript Config
-- **Frontend**: Projekt-Referenzen (`tsconfig.json` referenziert `tsconfig.app.json` und `tsconfig.node.json`)
-  - Target: ES2022, Strict Mode, Bundler Module Resolution
+- **Frontend**: Projekt-Referenzen (`tsconfig.json` referenziert `tsconfig.app.json` und `tsconfig.node.json`), Target ES2022, Strict Mode — `noUnusedLocals`/`noUnusedParameters` aktiv (verhindert „fertig, aber nie verdrahtet"-Fälle)
 - **Backend**: ES2020 Target, CommonJS, Strict Mode
 
 ### shadcn/ui Config (`app/components.json`)
-- Style: "new-york"
-- Base Color: "slate"
-- CSS Variables: true
-- Icons: lucide
+- Style: "new-york", Base Color: "slate", CSS Variables: true, Icons: lucide
 
 ## Datenbank-Schema (Prisma)
 
@@ -609,14 +416,13 @@ VITE_APP_VERSION="1.0.0"
 - **Role / Permission / UserRole / RolePermission**: RBAC-System
 - **Session / RefreshToken**: Token-Management
 - **AuditLog**: Sicherheits-Audit-Trail
-- **Subscription / Invoice**: Abonnement-Management mit Stripe-Feldern
+- **Subscription / Invoice**: Abonnement-Management mit Stripe-Feldern (Stripe-Code selbst fehlt noch)
 - **MillmanProfile**: Lebensweg, Wurzelzahlen, Meisterzahlen, etc.
 - **HumanDesignProfile**: Energie-Typ, Autorität, Profil, Zentren, Tore, Kanäle
 - **GeneKeysProfile**: 11 Gene Keys des Hologenetischen Profils
+- **JournalEntry**: Serverseitige Journal-Einträge
 - **SynthesisCache**: KI-generierte Texte (30 Tage Cache)
 - **DailyCoaching**: Tägliche Coaching-Impulse
-- **TransitData**: Tägliche Planeten-Positionen
-- **CommunityStats**: Pre-berechnete Statistiken
 
 ### Enums
 - `UserStatus`: ACTIVE, SUSPENDED, DELETED
@@ -630,27 +436,41 @@ VITE_APP_VERSION="1.0.0"
 
 ## Deployment
 
-### Desktop (Tauri)
-```bash
-cd app
-npm run tauri build    # Erstellt .exe, .dmg, .appimage
-```
+Empfohlener Ziel-Stack (siehe `MONETIZATION_PLAN.md`): **Render** (Backend) + **Supabase** (PostgreSQL) + Static Hosting/CDN fürs Frontend.
 
-### Backend
 ```bash
+# Backend
 cd backend
-npm run build
-# Deploy dist/ zu VPS/Cloud
+pnpm build
+pnpm exec prisma migrate deploy   # beim ersten Deploy zwingend
+pnpm start
+
+# Frontend
+cd app
+pnpm build                         # dist/ auf Static Hosting
 ```
 
-### Docker Compose
-```bash
-docker-compose up       # Startet PostgreSQL, Redis, Backend
-```
+**Vor dem ersten Deploy Env-Checkliste:** `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL`, `CORS_ORIGINS`, `SE_EPHE_PATH`.
 
-### Datenbank
-- Prisma Migrations für Schema-Updates
-- PostgreSQL via Supabase oder Docker
+## Launch-Blocker (kommerzieller Launch)
+
+Siehe ausführlich in `PRODUCTION_READY_PLAN.md` (Abschnitt „Launch-Blocker"). Kurz:
+
+1. **sweph ist AGPL** → kommerzielle Astrodienst-Lizenz (~500 €) oder Umstieg auf MIT-lizenzierte Ephemeriden-Alternative
+2. **Stripe-Integration fehlt** (Schema vorbereitet, Checkout/Webhooks nicht implementiert)
+3. **Deployment noch nicht erfolgt** (Empfehlung: Render + Supabase)
+4. **`prisma migrate deploy`** beim ersten Deploy
+5. **Env**: `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL`, `JWT_SECRET`/`JWT_REFRESH_SECRET`
+
+## Bekannte offene Punkte
+
+- **AuthProvider-Unmount-Bug**: Bei `isLoading` unmountet der `AuthProvider` den Router-Baum; ein `navigate()` direkt nach dem Login kann dadurch hängen bleiben (in Phase 4 des Fix-Plans gefunden, noch nicht behoben).
+- **Nachgelagerte LOW-Findings aus dem Audit**:
+  - JSON-Body-Limit von 10 MB ist zu großzügig
+  - `parseInt` ohne Bound-Checks an einzelnen Stellen
+  - Temperature-Slider in den KI-Einstellungen ruft unbeabsichtigt `setBaseUrl` auf
+  - 737-KB-Frontend-Chunk ohne Code-Splitting
+- **M9 (CI)**: `ci-docker.yml` baut das Docker-Image nur, startet es nie — Runtime-Healthcheck (`/health` im gestarteten Container + Prüfung der `.se1`-Dateien) fehlt in CI.
 
 ## Häufige Patterns
 
@@ -668,22 +488,9 @@ export function useHDChart(): HumanDesignChart | null {
 }
 ```
 
-### Tauri Command Invocation
-```typescript
-import { invokeSafe, isTauri } from '@/lib/tauri';
-
-// Desktop (Tauri): Ruft Rust-Backend auf
-const chart = await invokeSafe('calculate_human_design', { year, month, ... });
-
-// Web: Rückgabe eines Fallback-Werts oder graceful degradation
-if (!isTauri()) {
-  // Web-spezifische Logik (z.B. API-Call oder localStorage)
-}
-```
-
 ### API Call Pattern
 ```typescript
-const response = await fetch('/api/synthesis/generate', {
+const response = await fetch(`${API_BASE}/api/synthesis/generate`, {
   method: 'POST',
   headers: { 'Authorization': `Bearer ${token}` },
   body: JSON.stringify(data)
@@ -708,94 +515,39 @@ router.post('/generate', authenticate, requireTier(['PREMIUM', 'PRO']), asyncHan
 
 ## Troubleshooting
 
-### Tauri Dev Startet Nicht
-- Prüfe: Rust installiert (`rustc --version`)
-- Prüfe: Windows WebView2 Runtime vorhanden
-- Prüfe: Node.js 20+ installiert
+### sweph Installation schlägt fehl (Windows)
+- Visual Studio Build Tools (C++ Workload) installieren — node-gyp braucht sie
+- Für reine Test-Läufe nicht nötig: Tests nutzen `backend/src/__mocks__/sweph.ts`
+- Alternative: über Docker entwickeln (`docker-compose.dev.yml`), dort sind die Build-Deps enthalten
 
 ### Prisma Fehler
 ```bash
-npx prisma generate    # Client neu generieren
-npx prisma db push     # Schema synchronisieren
-npx prisma migrate dev # Migration erstellen
+pnpm exec prisma generate      # Client neu generieren
+pnpm exec prisma migrate deploy # Migrationen anwenden (keine Dev-DB nötig für die Migrationen selbst)
 ```
 
 ### Build Fehler
-- `node_modules` löschen und `npm install`
+- `node_modules` löschen und `pnpm install`
 - TypeScript Version prüfen (5.9.3 im Frontend, 5.2.2 im Backend)
-- Rust Toolchain aktualisieren: `rustup update`
+- Frontend: `tsc -b` zeigt Projekt-Referenz-Fehler, die `vite build` allein verschluckt
 
 ## Professionelle Berechnungen & Swiss Ephemeris
 
-### Aktueller Status der Berechnungen
+Alle astronomischen Berechnungen laufen serverseitig über `sweph` (Swiss Ephemeris) in `backend/src/services/ephemeris.ts` bzw. `humanDesignCalculator.ts` — mit professioneller Genauigkeit (±0.0001°). Die Ephemeris-Dateien (.se1) liegen in `backend/ephemeris/` und werden mit `scripts/download-ephemeris.sh|.ps1` heruntergeladen.
 
-Die Berechnungsmodule sind **funktional**, aber **nicht professionell präzise**:
+**Lizenz-Hinweis:** Swiss Ephemeris steht unter AGPL bzw. einer kommerziellen Astrodienst-Lizenz. Für einen kommerziellen Closed-Source-Launch muss die Lizenzfrage geklärt werden — siehe Launch-Blocker in `PRODUCTION_READY_PLAN.md`.
 
-| Modul | Status | Genauigkeit |
-|-------|--------|-------------|
-| Human Design | ⚠️ Funktional | Analytische Formeln (±2° für Planeten) |
-| Numerologie | ✅ Produktionsreif | Korrekt nach Dan Millman |
-| Transit | ⚠️ Funktional | Gleiche Einschränkungen wie HD |
-
-### Was ist notwendig für professionelle Genauigkeit?
-
-**Swiss Ephemeris Integration** ist kritisch:
-
-1. **Ephemeris-Dateien** (.se1) in `backend/ephemeris/` und `app/src-tauri/ephemeris/` ablegen
-2. **`ephemeris.rs`** Modul im Rust-Code verwenden (Safe Wrapper für libswe-sys)
-3. **`services/ephemeris.ts`** im Backend verwendet `sweph` npm package
-4. **Tests** mit JPL Horizons und mybodygraph.com validieren
-
-Detaillierte Spezifikationen:
-- `docs/PROFESSIONAL_CALCULATIONS_SPEC.md` - Gesamtkonzept
-- `docs/EPHEMERIS_IMPLEMENTATION_GUIDE.md` - Schritt-für-Schritt Umsetzung
-- `docs/TEST_REFERENCE_DATA.md` - Testdaten und Referenzwerte
-
-### Abweichungen aktueller Implementierung
-
-```
-Planet      | Aktuell (Analytisch) | Professionell (Swiss Ephem.)
-------------|---------------------|----------------------------
-Sonne       | ±0.01°              | ±0.0001°
-Mond        | ±0.5°               | ±0.0001°
-Merkur      | ±2°                 | ±0.0001°
-Venus       | ±1°                 | ±0.0001°
-Mars        | ±1.5°               | ±0.0001°
-```
-
-**Konsequenz**: Bei ±2° Abweichung kann ein Planet im falschen Human Design Gate liegen (jedes Tor = 5.625°).
-
-### Swiss Ephemeris Setup
-
-```bash
-# 1. Ephemeris-Dateien downloaden
-cd scripts
-./download-ephemeris.sh    # Linux/macOS
-# oder
-./download-ephemeris.ps1   # Windows
-
-# 2. Dateien werden automatisch in backend/ephemeris/ platziert
-# 3. Für Tauri: .se1 Dateien nach app/src-tauri/ephemeris/ kopieren
-```
-
-### Validierung
-
-Nach Implementierung muss getestet werden:
-
-1. **Ra Uru Hu Chart**: 28.04.1948, 08:14 EST, Montreal → Manifestor 5/1
-2. **JPL Horizons**: Vergleich mit NASA Planetenpositionen
-3. **MyBodyGraph**: 10+ zufällige Charts vergleichen
+Die älteren Dokumente in `docs/` (`EPHEMERIS_IMPLEMENTATION_GUIDE.md`, `PROFESSIONAL_CALCULATIONS_SPEC.md`, `SWISS_EPHEMERIS_PROFESSIONAL_SETUP.md`) beschreiben die Tauri/Rust-Umsetzung und sind nur noch als historische Referenz relevant; `docs/TEST_REFERENCE_DATA.md` bleibt für Validierungs-Tests nutzbar.
 
 ## Hinweise für Agents
 
 1. **Sprache**: UI und Dokumentation sind auf Deutsch. Code-Kommentare können Englisch oder Deutsch sein.
-2. **Datenschutz**: Geburtsdaten dürfen NIE an externe APIs gesendet werden (außer deterministische Ergebnisse).
-3. **Performance**: Berechnungen im Rust-Core cachen (bereits implementiert via `CalculationCache`).
+2. **Datenschutz**: Geburtsdaten gehen ausschließlich an das eigene Backend. An externe KI-Provider gehen nur berechnete Profildaten — und nur über den Backend-Proxy, nie direkt aus dem Browser. Keine Aussagen wie „Daten verlassen das Gerät nie" mehr verwenden — sie sind seit dem Web-Pivot falsch.
+3. **Paketmanager**: pnpm. Keine `package-lock.json`/`yarn.lock` erzeugen.
 4. **KI-Prompts**: Sokratischer, reflektierender Stil (nicht belehrend). Siehe `backend/src/routes/synthesis.ts`.
 5. **UI**: Dark Mode only, Neo-Mystic Minimalism Design mit Glassmorphism-Effekten.
 6. **Imports**: Immer `@/` Alias verwenden, nie relative Pfade wie `../../`.
 7. **Tailwind**: `cn()` Utility nutzen für bedingte Klassen.
 8. **State**: Zustand mit Persistenz für Daten, die über Sessions erhalten bleiben sollen. **NIEMALS** API-Keys oder Auth-Tokens persistieren.
-9. **Berechnungen**: Aktuelle Implementierung ist analytisch, nicht mit Swiss Ephemeris. Siehe `docs/PROFESSIONAL_CALCULATIONS_SPEC.md` für Upgrade.
-10. **Tests**: Nach jeder signifikanten Änderung Tests ausführen (`npm test` in app und backend).
-11. **Environment**: `.env.example` Dateien als Vorlage verwenden, nie echte Secrets committen.
+9. **Tests**: Nach jeder signifikanten Änderung Tests ausführen (`pnpm test` in app und backend). Backend-Tests brauchen keine DB (Prisma/sweph gemockt).
+10. **Environment**: `.env.example` Dateien als Vorlage verwenden, nie echte Secrets committen.

@@ -6,6 +6,8 @@
 > Zeitrahmen: ~2 Wochen (1 Entwickler Vollzeit)
 > Reihenfolge: 0 → 1 → 2 → 3 → 4 (nicht überspringen — Phase 0 macht das Produkt erst benutzbar)
 
+> **Status 2026-07-29:** Die Phasen 0–4 dieses Plans wurden über einen genehmigten Fix-Plan abgearbeitet; die kritischen Audit-Befunde sind behoben, die Tests sind grün (app 28, backend 134, 1 Playwright-Smoke). Die Plan-Schritte unten bleiben als historische Referenz stehen. Aktuell verbindlich ist die Sektion **„Launch-Blocker (kommerzieller Launch)"** weiter unten.
+
 ---
 
 ## 0. STATUS DES ALTEN PLANS (2026-06-05)
@@ -139,6 +141,18 @@ Playwright-Test, der Onboarding → Chart-Anzeige → **Journal-Eintrag anlegen 
 - Fein-granulares RBAC (`requirePermission`, `requireOwnership`, `Permission`/`RolePermission`-Tabellen) entweder tatsächlich an mindestens einem sensiblen Endpunkt verwenden oder als YAGNI entfernen — aktuell reine Dekoration, die falsche Sicherheit suggeriert.
 - Totes `TransitData`-Prisma-Modell entweder für Caching nutzen oder aus dem Schema entfernen.
 - **AGPL-Lizenzfrage für Swiss Ephemeris (`sweph`) klären** — rechtliches, kein Code-Ticket, aber ein echter Blocker für kommerzielle Closed-Source-Nutzung. Vor Monetarisierungsstart mit Astrodienst klären (~500€ kommerzielle Lizenz laut eigener Doku).
+
+---
+
+## LAUNCH-BLOCKER (kommerzieller Launch)
+
+Was vor einem **kommerziellen** Launch fehlt — der Code selbst ist release-fähig, diese Punkte sind es nicht:
+
+1. **Swiss Ephemeris Lizenz (AGPL).** `sweph` steht unter AGPL. Für kommerzielle Closed-Source-Nutzung: kommerzielle Lizenz von Astrodienst erwerben (~500 €) **oder** Umstieg auf eine MIT-lizenzierte Ephemeriden-Alternative. Rechtliches Ticket, kein Code-Ticket — aber echter Blocker.
+2. **Stripe-Integration.** Das Prisma-Schema ist vorbereitet (`Subscription` mit `stripeCustomerId`/`stripeSubscriptionId`/`stripePriceId`, `Invoice`), aber Checkout, Webhooks und Tier-Upgrades sind nicht implementiert.
+3. **Deployment.** Es wurde noch nirgends deployt. Empfehlung (siehe `MONETIZATION_PLAN.md`): **Render** für das Backend + **Supabase** für PostgreSQL; Frontend als Static Build.
+4. **Datenbank-Migrationen.** Die Migrationen sind handgeschrieben (ohne Live-DB erstellt). Beim ersten Deploy zwingend `pnpm exec prisma migrate deploy` gegen die Ziel-DB ausführen.
+5. **Environment-Variablen.** Vor dem ersten Deploy setzen: `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET` (plus `DATABASE_URL`/`DIRECT_URL`, `CORS_ORIGINS`, `SE_EPHE_PATH`).
 
 ---
 

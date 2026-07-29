@@ -12,7 +12,7 @@
 
 **Eine transformative Full-Stack-Anwendung zur Synthese von Human Design, Gene Keys und Dan Millman Numerologie mit KI-gestützter Kreuzkorrelationsanalyse**
 
-> Deploybar als Web-App (React + Node.js) und als Desktop-App (Tauri v2).
+> Web-App: React + Vite Frontend (`app/`) mit Node.js/Express + Prisma Backend (`backend/`). Alle Berechnungen laufen serverseitig.
 
 [🚀 Features](#features) • [📦 Installation](#installation) • [🏗️ Architektur](#architektur) • [📚 Dokumentation](#dokumentation)
 
@@ -59,7 +59,7 @@
 
 ### 🌟 Zusätzliche Features
 - **🪐 Planetare Transits**: Tägliche Planetenpositionen und Vergleich mit Natal-Chart
-- **📓 Verschlüsseltes Journal**: Client-seitig verschlüsselte Einträge
+- **📓 Journal**: Einträge serverseitig mit dem Konto verknüpft; im Gast-Modus lokal im Browser
 - **📄 PDF-Export**: Exportiere Charts, Reports und Journal-Einträge
 - **🌍 Smart Geocoding**: Open-Meteo Integration für Ortsuche und Zeitzonenerkennung
 - **🎨 Neo-Mystic Design**: Dark Mode, Glassmorphism, Framer Motion Animationen
@@ -95,6 +95,7 @@
 | Komponente | Version | Download |
 |------------|---------|----------|
 | Node.js | 20+ | [nodejs.org](https://nodejs.org) |
+| pnpm | 9+ | [pnpm.io](https://pnpm.io) |
 | PostgreSQL | 15+ | [postgresql.org](https://postgresql.org) |
 | Redis | 7+ | [redis.io](https://redis.io) |
 
@@ -110,12 +111,13 @@ docker-compose up -d
 
 # 3. Datenbank-Migrationen ausführen
 cd backend
-npx prisma migrate dev
+pnpm install
+pnpm exec prisma migrate deploy
 
 # 4. Frontend starten
 cd ../app
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ### Manuelle Installation
@@ -127,20 +129,20 @@ cd synthesis-engine-hd
 
 # 2. Backend installieren & starten
 cd backend
-npm install
+pnpm install
 
 # .env Datei erstellen und anpassen
 cp .env.example .env
-# POSTGRES_URL und REDIS_URL konfigurieren
+# DATABASE_URL und JWT_SECRET/JWT_REFRESH_SECRET konfigurieren
 
-npx prisma generate
-npx prisma migrate dev
-npm run dev
+pnpm exec prisma generate
+pnpm exec prisma migrate deploy
+pnpm dev
 
 # 3. Frontend installieren & starten (neues Terminal)
 cd ../app
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Die App ist dann verfügbar unter:
@@ -267,14 +269,16 @@ GET    /api/coaching/daily          # Täglicher Coaching-Impuls
 
 ---
 
-## 🔒 Sicherheit
+## 🔒 Sicherheit & Datenschutz
 
-- **🔐 Client-seitige Verschlüsselung** für Journal-Einträge
 - **🛡️ JWT** für API-Authentifizierung (Access & Refresh Tokens)
-- **⚡ Rate Limiting** (100 Requests/Min)
+- **⚡ Rate Limiting** (100 Requests/Min allgemein, engere Limits für Auth und Berechnungs-Endpunkte)
 - **🛡️ Helmet** für Security Headers
-- **🚫 Geburtsdaten** bleiben serverseitig geschützt
-- **🗝️ Argon2** für Passwort-Hashing
+- **🗝️ bcrypt** für Passwort-Hashing; Reset-/Verify-Tokens werden gehasht gespeichert
+- **🔑 API-Keys** der KI-Provider laufen über den Backend-Proxy (`/api/ai/proxy`), nicht direkt aus dem Browser
+- **📊 Berechnungen erfolgen serverseitig**: Geburtsdaten werden zur Chart-Berechnung an das eigene Backend übertragen und dort verarbeitet. Gespeichert werden die berechneten Profile/Charts mit dem Konto; Journal-Einträge liegen serverseitig (Gast-Modus: lokal im Browser).
+
+> Hinweis: Die frühere Aussage „Geburtsdaten verlassen das Gerät nie" stammte aus der Desktop-Phase (Tauri/Rust-Core) und gilt seit dem Umstieg auf die Web-Architektur nicht mehr.
 
 ---
 
@@ -286,10 +290,20 @@ GET    /api/coaching/daily          # Täglicher Coaching-Impuls
 - [x] Gene Keys Integration
 - [x] KI-Synthese (OpenAI/Anthropic/Google)
 - [x] Planetare Transits
-- [x] Verschlüsseltes Journal
+- [x] Journal (serverseitig, Gast-Modus lokal)
 - [x] PDF-Export
 - [x] JWT-Authentifizierung
 - [x] Docker-Setup
+
+### 🚧 Vor einem kommerziellen Launch offen
+
+Die vollständige Liste steht in [`PRODUCTION_READY_PLAN.md`](PRODUCTION_READY_PLAN.md) (Abschnitt „Launch-Blocker"). Kurzfassung:
+
+- [ ] **Swiss Ephemeris Lizenz**: `sweph` steht unter AGPL — kommerzielle Astrodienst-Lizenz (~500 €) erwerben oder auf eine MIT-lizenzierte Ephemeriden-Alternative umsteigen
+- [ ] **Stripe-Integration**: Schema vorbereitet (`Subscription` mit Stripe-Feldern), Checkout-/Webhook-Code fehlt
+- [ ] **Deployment**: Empfehlung Render (Backend) + Supabase (PostgreSQL), siehe `MONETIZATION_PLAN.md`
+- [ ] **Erster Deploy**: `prisma migrate deploy` ausführen (Migrationen sind handgeschrieben)
+- [ ] **Env-Variablen** setzen: `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`
 
 ### 🚧 Geplant (Zukünftige Releases)
 - [ ] **Mobile App** (React Native / PWA)

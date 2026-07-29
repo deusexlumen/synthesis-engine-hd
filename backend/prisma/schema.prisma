@@ -449,29 +449,6 @@ model DailyCoaching {
 }
 
 // ============================================================
-// 8. TRANSIT DATA
-// ============================================================
-model TransitData {
-  id          String   @id @default(uuid())
-  date        DateTime @unique
-  
-  sunGate     Int
-  sunLine     Int
-  moonGate    Int
-  moonLine    Int
-  
-  mercuryGate Int?
-  venusGate   Int?
-  marsGate    Int?
-  jupiterGate Int?
-  saturnGate  Int?
-  
-  createdAt   DateTime @default(now())
-  
-  @@index([date])
-}
-
-// ============================================================
 // 9. COMMUNITY STATS
 // ============================================================
 model CommunityStats {

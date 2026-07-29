@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -111,7 +112,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       onSave(entryData);
     } catch (error) {
       console.error('Failed to save entry:', error);
-      alert('Fehler beim Speichern. Bitte versuche es erneut.');
+      toast.error('Fehler beim Speichern. Bitte versuche es erneut.');
     } finally {
       setIsSaving(false);
     }
@@ -128,7 +129,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       onDelete?.(entry.id);
     } catch (error) {
       console.error('Failed to delete entry:', error);
-      alert('Fehler beim Löschen. Bitte versuche es erneut.');
+      toast.error('Fehler beim Löschen. Bitte versuche es erneut.');
     }
   };
 

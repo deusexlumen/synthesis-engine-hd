@@ -143,7 +143,7 @@ async function fetchWithTimeout(
  * Parse API error response
  */
 async function parseError(response: Response): Promise<APIError> {
-  let errorData: { message?: string; code?: string; details?: unknown } = {};
+  let errorData: { message?: string; error?: string; code?: string; details?: unknown } = {};
 
   try {
     errorData = await response.json();
@@ -151,7 +151,8 @@ async function parseError(response: Response): Promise<APIError> {
     // If JSON parsing fails, use status text
   }
 
-  const message = errorData.message || response.statusText || 'An error occurred';
+  // Backend error responses use { error }, some upstreams use { message }
+  const message = errorData.message || errorData.error || response.statusText || 'An error occurred';
   const code = errorData.code || `HTTP_${response.status}`;
 
   return new APIError(message, response.status, code, errorData.details);
@@ -263,6 +264,54 @@ export const api = {
     setTimeout(() => requestCache.delete(cacheKey), CACHE_DURATION);
 
     return requestPromise;
+  },
+
+  /**
+   * Call an AI provider through the backend proxy (POST /api/ai/proxy).
+   * The user's own API key travels in the X-AI-API-Key header to OUR
+   * server only — the browser never talks to Anthropic/OpenAI/Google
+   * directly. Returns the assistant's text.
+   */
+  async proxyAI(options: {
+    provider: 'openai' | 'anthropic' | 'google' | 'custom';
+    model: string;
+    messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
+    apiKey: string;
+    accessToken: string;
+    baseUrl?: string;
+    temperature?: number;
+    maxTokens?: number;
+  }): Promise<string> {
+    const response = await fetchWithTimeout(`${API_BASE}/api/ai/proxy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${options.accessToken}`,
+        'X-AI-API-Key': options.apiKey,
+      },
+      body: JSON.stringify({
+        provider: options.provider,
+        model: options.model,
+        messages: options.messages,
+        temperature: options.temperature ?? 0.7,
+        maxTokens: options.maxTokens ?? 800,
+        baseUrl: options.baseUrl,
+      }),
+    });
+
+    if (!response.ok) {
+      throw await parseError(response);
+    }
+
+    const data = await response.json();
+
+    // Anthropic keeps its native shape; openai/custom/google are
+    // normalized server-side to the OpenAI shape.
+    if (options.provider === 'anthropic') {
+      return data.content?.[0]?.text ?? '';
+    }
+    return data.choices?.[0]?.message?.content ?? '';
   },
 
   /**

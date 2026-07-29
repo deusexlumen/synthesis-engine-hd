@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAIConfigStore } from '@/stores/aiConfigStore';
+import { useAuthStore } from '@/stores/authStore';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Sparkles, MessageCircle, RefreshCw, Brain, Lock, ChevronRight, Loader2 } from 'lucide-react';
@@ -51,7 +53,7 @@ const coachingPrompts = [
 ];
 
 export function AICoaching({ hdData, numerologyData }: AICoachingProps) {
-  const { provider, apiKey, model, isConfigured } = useAIConfigStore();
+  const { provider, apiKey, model, baseUrl, isConfigured } = useAIConfigStore();
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedText, setGeneratedText] = useState<string | null>(null);
@@ -62,15 +64,34 @@ export function AICoaching({ hdData, numerologyData }: AICoachingProps) {
       return;
     }
 
+    const accessToken = useAuthStore.getState().tokens?.accessToken;
+    if (!accessToken) {
+      toast.error('Bitte melde dich an, um das KI-Coaching über den Server-Proxy zu nutzen');
+      return;
+    }
+
     setSelectedPrompt(promptId);
     setIsGenerating(true);
     setGeneratedText(null);
 
     try {
       const prompt = buildPrompt(promptId, hdData, numerologyData);
-      const result = await callAI(provider, apiKey, model, prompt);
-      
-      setGeneratedText(result);
+      // Calls go through the backend proxy — the API key never leaves our
+      // server towards the provider, and never directly from the browser.
+      const result = await api.proxyAI({
+        provider: provider as 'openai' | 'anthropic' | 'google' | 'custom',
+        model,
+        messages: [
+          { role: 'system', content: 'Du bist ein weiser Begleiter für Human Design und Numerologie.' },
+          { role: 'user', content: prompt },
+        ],
+        apiKey,
+        baseUrl,
+        accessToken,
+        maxTokens: 500,
+      });
+
+      setGeneratedText(result || 'Keine Antwort erhalten');
     } catch (error) {
       toast.error('Fehler bei der KI-Generierung: ' + String(error));
     } finally {
@@ -195,8 +216,8 @@ export function AICoaching({ hdData, numerologyData }: AICoachingProps) {
         <div className="flex items-center gap-3">
           <Brain className="w-5 h-5 text-purple-400" />
           <p className="text-white/50 text-sm">
-            KI-Coaching nutzt deinen eigenen API-Key. 
-            Deine Daten werden direkt an {provider} gesendet.
+            KI-Coaching nutzt deinen eigenen API-Key.
+            Anfragen laufen über den Synthesis-Server (Proxy) an {provider} — dein Key wird nicht gespeichert.
           </p>
         </div>
       </motion.div>
@@ -269,83 +290,3 @@ Gebe konkrete, anwendbare Tipps.`,
   return prompts[promptId] || prompts.daily;
 }
 
-async function callAI(
-  provider: string,
-  apiKey: string,
-  model: string,
-  prompt: string
-): Promise<string> {
-  let url: string;
-  let headers: Record<string, string>;
-  let body: Record<string, unknown>;
-
-  switch (provider) {
-    case 'openai':
-      url = 'https://api.openai.com/v1/chat/completions';
-      headers = {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      };
-      body = {
-        model: model || 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: 'Du bist ein weiser Begleiter für Human Design und Numerologie.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 500,
-      };
-      break;
-
-    case 'anthropic':
-      url = 'https://api.anthropic.com/v1/messages';
-      headers = {
-        'x-api-key': apiKey,
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-        // Required for browser-origin requests — without it the Anthropic
-        // API rejects the CORS preflight and this call fails outright.
-        'anthropic-dangerous-direct-browser-access': 'true',
-      };
-      body = {
-        model: model || 'claude-haiku-4-5',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 500,
-      };
-      break;
-
-    case 'google':
-      url = `https://generativelanguage.googleapis.com/v1beta/models/${model || 'gemini-pro'}:generateContent?key=${apiKey}`;
-      headers = { 'Content-Type': 'application/json' };
-      body = {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 500 },
-      };
-      break;
-
-    default:
-      throw new Error('Unknown provider');
-  }
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    throw new Error(`API Error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  
-  if (provider === 'openai') {
-    return data.choices[0].message.content;
-  } else if (provider === 'anthropic') {
-    return data.content[0].text;
-  } else if (provider === 'google') {
-    return data.candidates[0].content.parts[0].text;
-  }
-  
-  return 'Keine Antwort erhalten';
-}

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAIConfigStore, providerModels, providerInfo, type AIProvider } from '@/stores/aiConfigStore';
+import { useAuthStore } from '@/stores/authStore';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -363,8 +365,8 @@ export function AISettings() {
           },
           { 
             icon: Shield, 
-            title: 'Direkte Verbindung', 
-            desc: 'Anfragen gehen direkt an den Provider. Keine Zwischenserver.' 
+            title: 'Server-Proxy', 
+            desc: 'Anfragen laufen über unseren Backend-Proxy zum Provider — der Browser verbindet sich nie direkt mit Anthropic/OpenAI/Google.' 
           },
           { 
             icon: Wallet, 
@@ -407,84 +409,35 @@ export function AISettings() {
   );
 }
 
-// Test AI connection
+// Test AI connection via the backend proxy — the API key is sent to OUR
+// server only (X-AI-API-Key header), never from the browser to the provider.
 async function testAIConnection(config: {
   provider: AIProvider;
   apiKey: string;
   model: string;
   baseUrl?: string;
 }): Promise<{ success: boolean; error?: string }> {
+  const accessToken = useAuthStore.getState().tokens?.accessToken;
+  if (!accessToken) {
+    return {
+      success: false,
+      error: 'Bitte melde dich an, um die Verbindung über den Server-Proxy zu testen',
+    };
+  }
+
   try {
-    let url: string;
-    let headers: Record<string, string>;
-    let body: Record<string, unknown>;
-
-    switch (config.provider) {
-      case 'openai':
-        url = 'https://api.openai.com/v1/chat/completions';
-        headers = {
-          'Authorization': `Bearer ${config.apiKey}`,
-          'Content-Type': 'application/json',
-        };
-        body = {
-          model: config.model,
-          messages: [{ role: 'user', content: 'Hello' }],
-          max_tokens: 5,
-        };
-        break;
-
-      case 'anthropic':
-        url = 'https://api.anthropic.com/v1/messages';
-        headers = {
-          'x-api-key': config.apiKey,
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
-        };
-        body = {
-          model: config.model,
-          messages: [{ role: 'user', content: 'Hello' }],
-          max_tokens: 5,
-        };
-        break;
-
-      case 'google':
-        url = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-        headers = { 'Content-Type': 'application/json' };
-        body = { contents: [{ parts: [{ text: 'Hello' }] }] };
-        break;
-
-      case 'custom':
-        if (!config.baseUrl) {
-          return { success: false, error: 'Base URL required for custom provider' };
-        }
-        url = `${config.baseUrl}/chat/completions`;
-        headers = {
-          'Authorization': `Bearer ${config.apiKey}`,
-          'Content-Type': 'application/json',
-        };
-        body = {
-          model: config.model,
-          messages: [{ role: 'user', content: 'Hello' }],
-          max_tokens: 5,
-        };
-        break;
-
-      default:
-        return { success: false, error: 'Unknown provider' };
-    }
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
+    await api.proxyAI({
+      provider: config.provider as 'openai' | 'anthropic' | 'google' | 'custom',
+      model: config.model,
+      messages: [{ role: 'user', content: 'Hello' }],
+      apiKey: config.apiKey,
+      baseUrl: config.baseUrl,
+      accessToken,
+      maxTokens: 5,
     });
-
-    if (!response.ok) {
-      return { success: false, error: `API Error: ${response.status}` };
-    }
 
     return { success: true };
   } catch (error) {
-    return { success: false, error: String(error) };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/stores/appStore';
@@ -7,9 +7,10 @@ import { OnboardingFlow } from '@/sections/OnboardingFlow';
 import { ProcessingAnimation } from '@/sections/ProcessingAnimation';
 import { ResultsDashboard } from '@/sections/ResultsDashboard';
 import { AISettings } from '@/sections/AISettings';
+import { SettingsSection } from '@/sections/SettingsSection';
 import { ToastContainer } from '@/components/Toast';
 import { Button } from '@/components/ui/button';
-import { Brain, Settings, Home, Sparkles, Activity, User, LogOut } from 'lucide-react';
+import { Brain, Settings, Home, Sparkles, LogOut } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth';
 import LoginPage from '@/pages/auth/LoginPage';
 import RegisterPage from '@/pages/auth/RegisterPage';
@@ -201,7 +202,7 @@ function MainApp() {
                       >
                         Einstellungen
                       </motion.h1>
-                      <SettingsPlaceholder />
+                      <SettingsSection />
                     </div>
                   </motion.div>
                 )}
@@ -291,118 +292,6 @@ function NavButton({
       {icon}
       <span className="hidden sm:inline text-sm">{label}</span>
     </Button>
-  );
-}
-
-function SettingsPlaceholder() {
-  const { user, logout } = useAuthStore();
-  const [health, setHealth] = useState<{
-    status: 'ok' | 'warning' | 'error';
-    ephemeris: { usingFiles: boolean };
-  } | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    
-    import('@/lib/api').then(({ api }) => {
-      api.checkHealth()
-        .then((data) => {
-          if (!cancelled) {
-            setHealth(data);
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setHealth(null);
-          }
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setIsLoading(false);
-          }
-        });
-    });
-    
-    return () => { cancelled = true; };
-  }, []);
-
-  return (
-    <div className="space-y-6">
-      {/* User Profile Card */}
-      <div className="glass rounded-3xl p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center">
-            <User className="w-8 h-8 text-white" />
-          </div>
-          <div>
-            <h3 className="text-lg font-medium">{user?.email}</h3>
-            <p className="text-white/50 text-sm">{user?.email}</p>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 text-xs font-medium">
-                {user?.subscription?.tier || 'FREE'}
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-medium">
-                {user?.subscription?.status || 'ACTIVE'}
-              </span>
-            </div>
-          </div>
-        </div>
-        <Button 
-          onClick={logout}
-          variant="outline"
-          className="w-full border-white/10 hover:bg-white/5"
-        >
-          <LogOut className="w-4 h-4 mr-2" />
-          Abmelden
-        </Button>
-      </div>
-
-      {/* Health Status */}
-      <div className="glass rounded-3xl p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Activity className={`w-5 h-5 ${
-            health?.status === 'ok' ? 'text-emerald-400' : 
-            health?.status === 'warning' ? 'text-amber-400' : 'text-red-400'
-          }`} />
-          <h3 className="font-medium">System Status</h3>
-        </div>
-        {isLoading ? (
-          <div className="flex items-center gap-2 text-white/50 text-sm">
-            <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-            Status wird geladen...
-          </div>
-        ) : health ? (
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-white/50">Backend</span>
-              <span className={health.status === 'ok' ? 'text-emerald-400' : 'text-red-400'}>
-                {health.status === 'ok' ? 'Online' : health.status === 'warning' ? 'Eingeschränkt' : 'Offline'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/50">Ephemeris</span>
-              <span className={health.ephemeris.usingFiles ? 'text-emerald-400' : 'text-amber-400'}>
-                {health.ephemeris.usingFiles ? 'Professional' : 'Fallback'}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <p className="text-red-400 text-sm">Verbindung zum Backend fehlgeschlagen</p>
-        )}
-      </div>
-
-      {/* General Settings */}
-      <div className="glass rounded-3xl p-8 text-center">
-        <div className="w-16 h-16 mx-auto bg-white/5 rounded-2xl flex items-center justify-center mb-4">
-          <Settings className="w-8 h-8 text-white/30" />
-        </div>
-        <h3 className="text-lg font-medium mb-2">Einstellungen</h3>
-        <p className="text-white/50">
-          Weitere Einstellungen werden in zukünftigen Updates hinzugefügt.
-        </p>
-      </div>
-    </div>
   );
 }
 

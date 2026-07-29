@@ -16,13 +16,19 @@ import {
   Star,
   LayoutGrid,
   Compass,
-  Shield
+  Shield,
+  BookOpen,
+  Dna,
+  Orbit
 } from 'lucide-react';
 import { BodyGraphResponsive } from '@/components/BodyGraphResponsive';
 import { ResultsDashboardSkeleton, StatsCardSkeleton } from '@/components/Skeleton';
 import { NumerologyChart } from '@/components/NumerologyChart';
 import { AICoaching } from '@/components/AICoaching';
 import { EmptyState } from '@/components/EmptyState';
+import { JournalSection } from '@/sections/JournalSection';
+import { GeneKeysSection } from '@/sections/GeneKeysSection';
+import { TransitSection } from '@/sections/TransitSection';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import type { Center } from '@/types/humanDesign';
 
@@ -157,12 +163,15 @@ export function ResultsDashboard() {
       {/* Main Content */}
       <div className="max-w-6xl mx-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 bg-white/[0.03] backdrop-blur-xl rounded-2xl p-1 mb-8 border border-white/[0.06]">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8 bg-white/[0.03] backdrop-blur-xl rounded-2xl p-1 mb-8 border border-white/[0.06]">
             {[
               { id: 'overview', icon: LayoutGrid, label: 'Übersicht' },
               { id: 'bodygraph', icon: Zap, label: 'BodyGraph' },
               { id: 'numerology', icon: Target, label: 'Numerologie' },
               { id: 'details', icon: Compass, label: 'Details' },
+              { id: 'journal', icon: BookOpen, label: 'Journal' },
+              { id: 'genekeys', icon: Dna, label: 'Gene Keys' },
+              { id: 'transits', icon: Orbit, label: 'Transite' },
               { id: 'coaching', icon: Brain, label: 'KI-Coaching' },
             ].map((tab) => (
               <TabsTrigger
@@ -542,6 +551,21 @@ export function ResultsDashboard() {
                     )}
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              {/* JOURNAL TAB */}
+              <TabsContent value="journal" className="mt-0">
+                <JournalSection />
+              </TabsContent>
+
+              {/* GENE KEYS TAB */}
+              <TabsContent value="genekeys" className="mt-0">
+                <GeneKeysSection />
+              </TabsContent>
+
+              {/* TRANSITS TAB */}
+              <TabsContent value="transits" className="mt-0">
+                <TransitSection />
               </TabsContent>
 
               {/* COACHING TAB */}

@@ -6,6 +6,7 @@ import { Request } from 'express';
 import { prisma } from '../lib/prisma';
 import * as ephemeris from '../services/ephemeris';
 import { calculateHumanDesignChart } from '../services/humanDesignCalculator';
+import { hdCalculateLimiter } from '../middleware/rateLimit';
 
 const router: Router = Router();
 
@@ -78,9 +79,10 @@ const saveHDSchema = z.object({
  * No authentication required — the guest flow (see authStore.loginAsGuest)
  * lets people try the app before creating an account, and this endpoint
  * only computes from the supplied birth data; it doesn't touch stored
- * user records. Abuse is bounded by the generalLimiter applied in index.ts.
+ * user records. Abuse is bounded by hdCalculateLimiter (10/min — this is
+ * the most CPU-intensive endpoint) on top of the generalLimiter in index.ts.
  */
-router.post('/calculate', optionalAuth, asyncHandler(async (req, res) => {
+router.post('/calculate', hdCalculateLimiter, optionalAuth, asyncHandler(async (req, res) => {
   const startedAt = Date.now();
   const birthData = calculateSchema.parse(req.body);
 

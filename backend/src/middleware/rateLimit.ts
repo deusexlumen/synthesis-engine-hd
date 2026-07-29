@@ -49,6 +49,18 @@ export const coachingLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Human Design calculation rate limiting. /api/hd/calculate is the most
+// CPU-intensive endpoint (Newton-iteration ephemeris) and is reachable as a
+// guest, so it gets a much tighter budget than the generic 100/min limiter.
+export const hdCalculateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  keyGenerator: (req: any) => req.user?.userId || req.ip,
+  message: { error: 'Too many chart calculation requests. Please try again in a minute.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Transit range rate limiting (prevents DoS via large date ranges)
 export const transitRangeLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute

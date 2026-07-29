@@ -1,4 +1,4 @@
-import { Navigate, useLocation, Link } from 'react-router-dom';
+import { Navigate, useLocation, Link } from 'react-router';
 import { useAuthStore } from '@/stores/authStore';
 import { Spinner } from '@/components/ui/spinner';
 

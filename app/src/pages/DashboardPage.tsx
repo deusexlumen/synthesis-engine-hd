@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/authStore';
 import { Sparkles, User, LogOut, ChevronRight } from 'lucide-react';

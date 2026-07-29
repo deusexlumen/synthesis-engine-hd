@@ -358,8 +358,8 @@ export function AISettings() {
         {[
           { 
             icon: Lock, 
-            title: 'Lokale Speicherung', 
-            desc: 'Dein API-Key wird verschlüsselt auf deinem Gerät gespeichert.' 
+            title: 'Nur diese Sitzung', 
+            desc: 'Dein API-Key wird nur im Speicher dieser Browser-Sitzung gehalten und beim Neuladen verworfen.' 
           },
           { 
             icon: Shield, 

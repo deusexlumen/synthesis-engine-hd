@@ -1,4 +1,6 @@
 # 🚀 SYNTHESIS ENGINE - EXECUTIVE SUMMARY
+
+> **⚠️ Historisches Strategie-Dokument (Februar 2026, vor dem Web-Pivot).** Architektur-Aussagen (Tauri + Rust, „Offline-First als USP", lokale AES-256-Verschlüsselung) beschreiben den damaligen Plan und sind nicht mehr aktuell. Das Projekt ist inzwischen Web-only mit serverseitiger Berechnung — siehe `AGENTS.md` und `PROJECT_OVERVIEW.md`. Die Markt-/Monetarisierungsanalysen bleiben als strategische Referenz relevant.
 ## Full-Stack Blueprint für das 10-Millionen-Euro Spiritual-Tech-Startup
 
 ---

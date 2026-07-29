@@ -1,5 +1,7 @@
 # Professionelle Berechnungen - Implementierungsspezifikation
 
+> **⚠️ Historisches Dokument (Tauri-Ära).** Die beschriebenen Rust-Pfade (`app/src-tauri`) existieren nicht mehr. Professionelle Genauigkeit ist inzwischen erreicht: Das Backend nutzt `sweph` (Swiss Ephemeris) serverseitig. Dieses Dokument dient nur noch als Referenz.
+
 ## Executive Summary
 
 Diese Dokumentation beschreibt die notwendigen Schritte, um die Synthesis Engine auf professionelle, astrologisch korrekte Berechnungen umzustellen. Der Fokus liegt auf der Integration der **Swiss Ephemeris** für präzise Planetenpositionen und der korrekten Umsetzung aller Human Design- und Numerologie-Algorithmen.

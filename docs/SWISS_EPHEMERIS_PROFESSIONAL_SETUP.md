@@ -1,5 +1,7 @@
 # Professionelle Swiss Ephemeris Einrichtung
 
+> **⚠️ Historisches Dokument (Tauri-Ära).** Pfade wie `app/src-tauri/ephemeris` sind veraltet — Ephemeris-Dateien gehören jetzt nach `backend/ephemeris/` (Download via `scripts/download-ephemeris.sh|.ps1`). Dieses Dokument dient nur noch als Referenz.
+
 ## Übersicht
 
 Für die **höchstmögliche Genauigkeit** (±0.0001° = 0.36 Bogensekunden) müssen wir die komprimierten Swiss Ephemeris Dateien (.se1) verwenden statt der Moshier-Formeln.

@@ -86,3 +86,24 @@
 - `backend/src/routes/coaching.ts` liefert für das PREMIUM/PRO-Feature "Daily Coaching" hartkodierte Fake-Daten (`sunGate: 1, moonGate: 2`, ein fixer Satz für alle Nutzer/Tage) — bezahltes Feature ist Attrappe.
 - Zwei sicherheitskritische Test-Suiten (`aiConfigStore.test.ts`, `authStore.test.ts`) sind weiterhin `.skip`'d, genau die Regression hätte eine falsche Live-Aussage in `AISettings.tsx` ("API-Key wird verschlüsselt gespeichert" — stimmt nicht, Key wird gar nicht persistiert) verhindert.
 - Frontend-CI ist aktuell rot (69 Lint-Fehler in `app/`).
+
+## 2026-07-29 — Fix-Plan abgeschlossen + Doku-Wahrheit (Audit-Befund K8)
+
+### Fix-Plan (Phase 0–4) abgeschlossen
+- Alle kritischen Befunde aus `AUDIT_REPORT_2026-07-07.md` behoben: Sections wieder verdrahtet (Journal, Gene Keys, Transit, Settings), PHS-"Style"-Bug (NORTH_NODE), Coaching auf echten Transit-Daten, Frontend über Backend-AI-Proxy (keine direkten Provider-Calls mehr), Reset-/Verify-Tokens gehasht, falsche UI-Sicherheitsaussagen korrigiert, Security-Tests reaktiviert, Lint grün.
+- Tests: app 28 (Vitest), backend 134 (Jest + Supertest Contract-Suites), 1 Playwright-Smoke (`app/e2e/smoke.spec.ts`) — alle grün.
+- Journal jetzt serverseitig (`/api/journal`, Migration `20260729121500_create_journal_entries`); Gast-Modus weiterhin lokal, einmalige Migration alter localStorage-Einträge. `TransitData`-Modell entfernt (Migration `20260729113000_drop_transit_data`).
+- Migrationen sind handgeschrieben (ohne Live-DB) — beim ersten Deploy `prisma migrate deploy`.
+
+### Phase 5: Doku-Wahrheit (K8)
+- `README.md`, `AGENTS.md`, `PROJECT_OVERVIEW.md` auf Web-only-Architektur umgestellt; alle Tauri/Rust-Referenzen entfernt bzw. als historisch markiert.
+- Falsche Privacy-Aussage „Geburtsdaten verlassen das Gerät nie" überall korrigiert: Berechnung erfolgt serverseitig, gespeichert werden berechnete Profile; KI-Keys laufen über den Backend-Proxy; Journal serverseitig (Gast lokal).
+- `MONETIZATION_PLAN.md`: Tier-Namen an Prisma-Enum angeglichen (FREE/BASIC/PREMIUM/PRO statt SOUL_SYNC_PREMIUM).
+- `PRODUCTION_READY_PLAN.md`: neue Sektion „Launch-Blocker (kommerzieller Launch)" — sweph-AGPL (Astrodienst-Lizenz ~500 € oder MIT-Alternative), Stripe (Schema ja, Code nein), Deployment (Render + Supabase), `prisma migrate deploy`, Env (RESEND_API_KEY, EMAIL_FROM, FRONTEND_URL, JWT_SECRET/JWT_REFRESH_SECRET).
+- `AGENTS.md` dokumentiert jetzt den Ist-Zustand inkl. Sektion „Bekannte offene Punkte".
+- Historische Docs (`IMPLEMENTATION_SUMMARY.md`, `SYNTHESIS_ENGINE_EXECUTIVE_SUMMARY.md`, `docs/EPHEMERIS_IMPLEMENTATION_GUIDE.md`, `docs/PROFESSIONAL_CALCULATIONS_SPEC.md`, `docs/SWISS_EPHEMERIS_PROFESSIONAL_SETUP.md`) mit Hinweis-Header als Tauri-Ära markiert statt umgeschrieben.
+
+### Bekannte offene Punkte (nicht launch-blockierend)
+- **AuthProvider-Unmount-Bug**: bei `isLoading` unmountet der Provider den Router-Baum; `navigate()` direkt nach Login kann hängen (in Phase 4 gefunden, offen).
+- **Nachgelagerte LOW-Findings**: 10-MB-JSON-Body-Limit zu großzügig; `parseInt` ohne Bound-Checks; Temperature-Slider ruft unbeabsichtigt `setBaseUrl`; 737-KB-Frontend-Chunk ohne Code-Splitting.
+- **M9**: `ci-docker.yml` baut das Image nur — Runtime-Healthcheck (`/health` + `.se1`-Dateien im Container) fehlt in CI.

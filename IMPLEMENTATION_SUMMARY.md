@@ -1,5 +1,7 @@
 # Synthesis Engine - Implementierungszusammenfassung
 
+> **⚠️ Historisches Dokument (Tauri-Ära, bis ca. Juni 2026).** Beschreibt die Desktop-Architektur mit Rust-Core (`src-tauri`, AES-256-GCM, OS Keychain), die inzwischen vollständig entfernt wurde. Aktueller Stand: Web-only (React/Vite + Express/Prisma), Berechnungen serverseitig — siehe `AGENTS.md`.
+
 ## Phase 1 & 2 - Abgeschlossen
 
 ### Tauri v2 Migration

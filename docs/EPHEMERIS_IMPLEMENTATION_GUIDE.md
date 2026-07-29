@@ -1,5 +1,7 @@
 # Swiss Ephemeris Implementation Guide
 
+> **⚠️ Historisches Dokument (Tauri-Ära).** Beschreibt die Integration über den Rust-Core (`app/src-tauri`), der inzwischen vollständig entfernt wurde. Die aktuelle Implementierung läuft serverseitig im Backend über `sweph` (`backend/src/services/ephemeris.ts`, `backend/src/services/humanDesignCalculator.ts`); Ephemeris-Dateien liegen in `backend/ephemeris/`. Dieses Dokument dient nur noch als Referenz.
+
 ## Schritt-für-Schritt Anleitung
 
 ### Schritt 1: Ephemeris-Dateien beschaffen

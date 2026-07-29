@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { calculateMillmanProfile } from './millmanCalculations';
+import { useAIConfigStore } from '@/stores/aiConfigStore';
 
 // Human Design Gate calculation tests
 describe('Human Design Calculations', () => {
@@ -185,23 +186,37 @@ describe('Transit Calculations', () => {
   });
 });
 
-// Encryption tests (mock)
-describe('Encryption', () => {
-  it('should encrypt and decrypt data', () => {
-    // Mock encryption for testing
-    const mockEncrypt = (text: string): string => {
-      return btoa(text); // Simple base64 for testing
-    };
+// Store behavior tests (replaces a former btoa/atob placeholder test that
+// only round-tripped base64 without touching any application code)
+describe('AI Config Store', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useAIConfigStore.getState().reset();
+  });
 
-    const mockDecrypt = (encrypted: string): string => {
-      return atob(encrypted);
-    };
+  it('isConfigured() reflects provider, key and baseUrl rules', () => {
+    const store = useAIConfigStore.getState;
 
-    const original = 'Test message';
-    const encrypted = mockEncrypt(original);
-    const decrypted = mockDecrypt(encrypted);
+    // Disabled provider is never configured
+    store().setProvider('disabled');
+    store().setApiKey('sk-valid-looking-key');
+    expect(store().isConfigured()).toBe(false);
 
-    expect(decrypted).toBe(original);
-    expect(encrypted).not.toBe(original);
+    // Too-short key is rejected
+    store().setProvider('openai');
+    store().setApiKey('short');
+    expect(store().isConfigured()).toBe(false);
+
+    // Valid key configures the provider (and picks the default model)
+    store().setApiKey('sk-valid-looking-key');
+    expect(store().isConfigured()).toBe(true);
+    expect(store().model).toBe('gpt-4o-mini');
+
+    // Custom provider additionally requires a base URL
+    store().setProvider('custom');
+    store().setApiKey('sk-valid-looking-key');
+    expect(store().isConfigured()).toBe(false);
+    store().setBaseUrl('https://api.openrouter.ai/v1');
+    expect(store().isConfigured()).toBe(true);
   });
 });

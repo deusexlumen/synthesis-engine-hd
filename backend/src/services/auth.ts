@@ -94,11 +94,40 @@ export function generateAccessToken(payload: TokenPayload): string {
 }
 
 export function generateRefreshToken(userId: string): { token: string; expiresAt: Date } {
-  const token = uuidv4();
+  // Refresh tokens are signed with a SEPARATE secret than access tokens, so
+  // a leaked access-token secret can't mint refresh tokens (and vice versa).
+  // The token is still looked up in the DB (revocation, rotation tracking) —
+  // the JWT layer adds tamper-evidence and an independent expiry on top.
+  const token = jwt.sign(
+    { userId, jti: uuidv4(), type: 'refresh' },
+    JWT_CONFIG.refreshTokenSecret,
+    {
+      expiresIn: JWT_CONFIG.refreshTokenExpiry,
+      issuer: 'synthesis-engine',
+      audience: 'synthesis-engine-api',
+    }
+  );
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
   return { token, expiresAt };
+}
+
+/**
+ * Verify a refresh token's signature and shape (DB lookup happens separately)
+ */
+export function verifyRefreshToken(token: string): { userId: string } {
+  const payload = jwt.verify(token, JWT_CONFIG.refreshTokenSecret, {
+    algorithms: ['HS256'],
+    issuer: 'synthesis-engine',
+    audience: 'synthesis-engine-api',
+  }) as jwt.JwtPayload;
+
+  if (payload.type !== 'refresh' || typeof payload.userId !== 'string') {
+    throw new APIError('Invalid refresh token', 401, 'REFRESH_INVALID');
+  }
+
+  return { userId: payload.userId };
 }
 
 export function verifyAccessToken(token: string): TokenPayload {
@@ -309,6 +338,19 @@ export const authService = {
    * Refresh access token
    */
   async refreshToken(refreshToken: string, req?: Request): Promise<AuthTokens> {
+    // Verify signature/expiry against the dedicated refresh secret BEFORE
+    // hitting the DB — unsigned or expired tokens are rejected cheaply and
+    // never reach the lookup.
+    try {
+      verifyRefreshToken(refreshToken);
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      if (error instanceof Error && error.name === 'TokenExpiredError') {
+        throw new APIError('Refresh token expired', 401, 'REFRESH_EXPIRED');
+      }
+      throw new APIError('Invalid refresh token', 401, 'REFRESH_INVALID');
+    }
+
     // Find refresh token in database
     const storedToken = await prisma.refreshToken.findUnique({
       where: { token: refreshToken },

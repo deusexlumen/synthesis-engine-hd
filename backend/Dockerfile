@@ -62,9 +62,7 @@ COPY --from=builder /app/ephemeris/ ./ephemeris/
 # Copy built application and generated Prisma client
 COPY --from=builder /app/dist/ ./dist/
 COPY --from=builder /app/prisma/ ./prisma/
-COPY --from=builder /app/node_modules/.pnpm/@prisma+client* ./node_modules/.pnpm/ 2>/dev/null || true
-COPY --from=builder /app/node_modules/@prisma/client/ ./node_modules/@prisma/client/ 2>/dev/null || true
-COPY --from=builder /app/node_modules/.prisma/ ./node_modules/.prisma/ 2>/dev/null || true
+COPY --from=builder /app/node_modules/.prisma/ ./node_modules/.prisma/
 
 # Non-root user for security
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser

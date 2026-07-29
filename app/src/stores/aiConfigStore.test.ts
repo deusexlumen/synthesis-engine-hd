@@ -1,28 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-
-const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 100));
-
-// Mock localStorage for Zustand persist middleware
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => { store[key] = value; },
-    removeItem: (key: string) => { delete store[key]; },
-    clear: () => { store = {}; },
-  };
-})();
-
-Object.defineProperty(global, 'localStorage', { value: localStorageMock });
-Object.defineProperty(window, 'localStorage', { value: localStorageMock });
-
 import { useAIConfigStore } from './aiConfigStore';
 
-// NOTE: See authStore.test.ts for explanation.
-// Security enforced by partialize config in aiConfigStore.ts.
-describe.skip('aiConfigStore security', () => {
-  beforeEach(async () => {
-    localStorageMock.clear();
+// happy-dom provides a real localStorage; zustand persist captures
+// window.localStorage eagerly at store creation, so replacing the global
+// afterwards would not intercept writes — assert against the real one.
+describe('aiConfigStore security', () => {
+  beforeEach(() => {
+    localStorage.clear();
     useAIConfigStore.setState({
       provider: 'openai',
       apiKey: '',
@@ -31,19 +15,16 @@ describe.skip('aiConfigStore security', () => {
       temperature: 0.7,
       enabled: true,
     });
-    await flushPromises();
   });
 
-  it('must NOT persist apiKey to localStorage', async () => {
+  it('must NOT persist apiKey to localStorage', () => {
     useAIConfigStore.setState({
       apiKey: 'sk-test-secret-key-12345',
       provider: 'openai',
       model: 'gpt-4o',
     });
 
-    await flushPromises();
-
-    const stored = localStorageMock.getItem('synthesis-ai-config');
+    const stored = localStorage.getItem('synthesis-ai-config');
     expect(stored).toBeTruthy();
 
     const parsed = JSON.parse(stored!);
@@ -57,7 +38,7 @@ describe.skip('aiConfigStore security', () => {
     expect(parsed.state.temperature).toBe(0.7);
   });
 
-  it('must persist provider, model and settings without apiKey', async () => {
+  it('must persist provider, model and settings without apiKey', () => {
     useAIConfigStore.setState({
       provider: 'anthropic',
       model: 'claude-sonnet-5',
@@ -65,9 +46,7 @@ describe.skip('aiConfigStore security', () => {
       enabled: false,
     });
 
-    await flushPromises();
-
-    const stored = localStorageMock.getItem('synthesis-ai-config');
+    const stored = localStorage.getItem('synthesis-ai-config');
     const parsed = JSON.parse(stored!);
 
     expect(parsed.state.provider).toBe('anthropic');

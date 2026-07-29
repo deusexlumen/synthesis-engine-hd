@@ -1,32 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-
-// Helper to wait for zustand persist to flush
-const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 100));
-
-// Mock localStorage for Zustand persist middleware
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => { store[key] = value; },
-    removeItem: (key: string) => { delete store[key]; },
-    clear: () => { store = {}; },
-  };
-})();
-
-Object.defineProperty(global, 'localStorage', { value: localStorageMock });
-Object.defineProperty(window, 'localStorage', { value: localStorageMock });
-
-// Must import AFTER mocking localStorage
 import { useAuthStore } from './authStore';
 
-// NOTE: These tests require zustand persist to flush to localStorage.
-// In test environments, the flush timing can be unreliable.
-// The actual security (tokens not persisted) is enforced by the
-// partialize config in authStore.ts — verified by code review.
-describe.skip('authStore security', () => {
-  beforeEach(async () => {
-    localStorageMock.clear();
+// happy-dom provides a real localStorage; zustand persist captures
+// window.localStorage eagerly at store creation, so replacing the global
+// afterwards would not intercept writes — assert against the real one.
+describe('authStore security', () => {
+  beforeEach(() => {
+    localStorage.clear();
     useAuthStore.setState({
       user: null,
       tokens: null,
@@ -35,10 +15,9 @@ describe.skip('authStore security', () => {
       error: null,
       features: {},
     });
-    await flushPromises();
   });
 
-  it('must NOT persist tokens to localStorage', async () => {
+  it('must NOT persist tokens to localStorage', () => {
     // Simulate login by setting tokens directly
     useAuthStore.setState({
       tokens: {
@@ -49,10 +28,7 @@ describe.skip('authStore security', () => {
       isAuthenticated: true,
     });
 
-    // Wait for zustand persist to flush
-    await flushPromises();
-
-    const stored = localStorageMock.getItem('auth-storage');
+    const stored = localStorage.getItem('auth-storage');
     expect(stored).toBeTruthy();
 
     const parsed = JSON.parse(stored!);
@@ -66,7 +42,7 @@ describe.skip('authStore security', () => {
     expect(parsed.state.isAuthenticated).toBe(true);
   });
 
-  it('must persist user profile and auth status', async () => {
+  it('must persist user profile and auth status', () => {
     useAuthStore.setState({
       user: {
         id: 'user-123',
@@ -78,9 +54,7 @@ describe.skip('authStore security', () => {
       isAuthenticated: true,
     });
 
-    await flushPromises();
-
-    const stored = localStorageMock.getItem('auth-storage');
+    const stored = localStorage.getItem('auth-storage');
     const parsed = JSON.parse(stored!);
 
     expect(parsed.state.user).toBeDefined();

@@ -12,6 +12,7 @@ import { synthesisRouter } from './routes/synthesis';
 import { aiRouter } from './routes/ai';
 import { transitRouter } from './routes/transit';
 import { coachingRouter } from './routes/coaching';
+import { journalRouter } from './routes/journal';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { traceIdMiddleware } from './middleware/traceId';
 import { generalLimiter } from './middleware/rateLimit';
@@ -81,6 +82,7 @@ app.use('/api/synthesis', generalLimiter, synthesisRouter);
 app.use('/api/ai', generalLimiter, aiRouter);
 app.use('/api/transit', generalLimiter, transitRouter);
 app.use('/api/coaching', generalLimiter, coachingRouter);
+app.use('/api/journal', generalLimiter, journalRouter);
 
 // 404 handler (must come before the error handler — Express only invokes
 // 4-arg error middleware via next(err), so registration order here doesn't

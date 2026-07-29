@@ -3,16 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { JournalList } from '../components/JournalList';
 import { JournalEditor } from '../components/JournalEditor';
 import { BookOpen, Shield, Lock } from 'lucide-react';
-
-interface JournalEntry {
-  id: string;
-  date: string;
-  title: string;
-  content: string;
-  tags: string[];
-  mood?: string;
-  lastModified: string;
-}
+import { useAuthStore } from '@/stores/authStore';
+import type { JournalEntry } from '@/lib/journalApi';
 
 interface JournalSectionProps {
   className?: string;
@@ -22,6 +14,7 @@ export const JournalSection: React.FC<JournalSectionProps> = ({ className = '' }
   const [view, setView] = useState<'list' | 'edit'>('list');
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | undefined>();
   const [refreshKey, setRefreshKey] = useState(0);
+  const accessToken = useAuthStore((s) => s.tokens?.accessToken);
 
   const handleSelectEntry = useCallback((entry: JournalEntry) => {
     setSelectedEntry(entry);
@@ -95,11 +88,15 @@ export const JournalSection: React.FC<JournalSectionProps> = ({ className = '' }
           <div className="flex items-center justify-center gap-6 text-xs text-slate-500">
             <div className="flex items-center gap-2">
               <Lock className="w-4 h-4 text-green-400" />
-              <span>Nur lokal in deinem Browser gespeichert</span>
+              <span>
+                {accessToken
+                  ? 'Sicher mit deinem Konto verknüpft'
+                  : 'Nur lokal in deinem Browser gespeichert'}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-blue-400" />
-              <span>Lokale Speicherung</span>
+              <span>{accessToken ? 'Auf allen Geräten verfügbar' : 'Lokale Speicherung'}</span>
             </div>
             <div className="flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-violet-400" />

@@ -12,16 +12,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-
-interface JournalEntry {
-  id: string;
-  date: string;
-  title: string;
-  content: string;
-  tags: string[];
-  mood?: string;
-  lastModified: string;
-}
+import { toast } from 'sonner';
+import { useAuthStore } from '@/stores/authStore';
+import {
+  listEntries,
+  hasPendingLocalEntries,
+  migrateLocalEntries,
+  type JournalEntry,
+} from '@/lib/journalApi';
 
 interface JournalListProps {
   onSelectEntry: (entry: JournalEntry) => void;
@@ -53,11 +51,37 @@ export const JournalList: React.FC<JournalListProps> = ({
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
   const [allTags, setAllTags] = useState<string[]>([]);
+  const accessToken = useAuthStore((s) => s.tokens?.accessToken);
 
   const loadEntries = async () => {
     try {
       setLoading(true);
 
+      if (accessToken) {
+        // One-time import of pre-API localStorage entries into the account
+        if (hasPendingLocalEntries()) {
+          try {
+            const imported = await migrateLocalEntries(accessToken);
+            if (imported > 0) {
+              toast.success(
+                `${imported} ${imported === 1 ? 'lokaler Eintrag' : 'lokale Einträge'} in dein Konto importiert.`
+              );
+            }
+          } catch (error) {
+            console.error('Journal migration failed:', error);
+            toast.error('Lokale Einträge konnten nicht importiert werden. Es wird später erneut versucht.');
+          }
+        }
+
+        const parsed = await listEntries(accessToken);
+        setEntries(parsed);
+        const tagsSet = new Set<string>();
+        parsed.forEach(e => e.tags.forEach(tag => tagsSet.add(tag)));
+        setAllTags(Array.from(tagsSet).sort());
+        return;
+      }
+
+      // Guest mode: local-only
       const stored = localStorage.getItem('synthesis_journal_entries');
       if (stored) {
         const parsed: JournalEntry[] = JSON.parse(stored);
@@ -69,6 +93,7 @@ export const JournalList: React.FC<JournalListProps> = ({
       }
     } catch (error) {
       console.error('Failed to load entries:', error);
+      toast.error('Journal-Einträge konnten nicht geladen werden.');
     } finally {
       setLoading(false);
     }
@@ -79,7 +104,9 @@ export const JournalList: React.FC<JournalListProps> = ({
     queueMicrotask(() => {
       void loadEntries();
     });
-  }, []);
+    // Reload once the access token becomes available (e.g. after refresh).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken]);
 
   const filteredEntries = entries.filter((entry) => {
     const matchesSearch = 
@@ -149,7 +176,8 @@ export const JournalList: React.FC<JournalListProps> = ({
             <div>
               <h2 className="text-lg font-medium">Mein Journal</h2>
               <p className="text-xs text-slate-400">
-                {entries.length} {entries.length === 1 ? 'Eintrag' : 'Einträge'} • nur lokal gespeichert
+                {entries.length} {entries.length === 1 ? 'Eintrag' : 'Einträge'}
+                {accessToken ? ' • mit deinem Konto verknüpft' : ' • nur lokal gespeichert'}
               </p>
             </div>
           </div>

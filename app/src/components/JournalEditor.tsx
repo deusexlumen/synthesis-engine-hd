@@ -18,17 +18,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-
-interface JournalEntry {
-  id: string;
-  date: string;
-  title: string;
-  content: string;
-  tags: string[];
-  mood?: string;
-  transitDate?: string;
-  lastModified: string;
-}
+import { useAuthStore } from '@/stores/authStore';
+import {
+  createEntry,
+  updateEntry,
+  deleteEntry,
+  type JournalEntry,
+} from '@/lib/journalApi';
 
 interface JournalEditorProps {
   entry?: JournalEntry;
@@ -70,6 +66,11 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   const [showTagInput, setShowTagInput] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const accessToken = useAuthStore((s) => s.tokens?.accessToken);
+  // After the first successful save of a NEW entry the server id lives here —
+  // the `entry` prop never updates while the editor stays open, so autosave
+  // must PATCH this id instead of POSTing a duplicate every 30s.
+  const [savedId, setSavedId] = useState<string | undefined>(entry?.id);
 
   // Derived from content on every render — no effect needed.
   const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
@@ -84,45 +85,67 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
     setIsSaving(true);
 
     try {
-      const entryData: JournalEntry = {
-        id: entry?.id || `entry_${Date.now()}`,
-        date: entry?.date || new Date().toISOString(),
-        title: title.trim() || 'Unbenannter Eintrag',
-        content,
-        tags,
-        mood: mood || undefined,
-        lastModified: new Date().toISOString(),
-      };
-
-      const stored = localStorage.getItem('synthesis_journal_entries');
-      const entries: JournalEntry[] = stored ? JSON.parse(stored) : [];
-      const idx = entries.findIndex(e => e.id === entryData.id);
-      if (idx >= 0) {
-        entries[idx] = entryData;
+      if (accessToken) {
+        // Server-side persistence (account-bound)
+        const input = {
+          title: title.trim() || 'Unbenannter Eintrag',
+          content,
+          mood: mood || undefined,
+          tags,
+        };
+        const saved = savedId
+          ? await updateEntry(accessToken, savedId, input)
+          : await createEntry(accessToken, input);
+        setSavedId(saved.id);
+        setLastSaved(new Date());
+        onSave(saved);
       } else {
-        entries.push(entryData);
-      }
-      localStorage.setItem('synthesis_journal_entries', JSON.stringify(entries));
+        // Guest mode: local-only persistence
+        const entryData: JournalEntry = {
+          id: savedId || `entry_${Date.now()}`,
+          date: entry?.date || new Date().toISOString(),
+          title: title.trim() || 'Unbenannter Eintrag',
+          content,
+          tags,
+          mood: mood || undefined,
+          lastModified: new Date().toISOString(),
+        };
 
-      setLastSaved(new Date());
-      onSave(entryData);
+        const stored = localStorage.getItem('synthesis_journal_entries');
+        const entries: JournalEntry[] = stored ? JSON.parse(stored) : [];
+        const idx = entries.findIndex(e => e.id === entryData.id);
+        if (idx >= 0) {
+          entries[idx] = entryData;
+        } else {
+          entries.push(entryData);
+        }
+        localStorage.setItem('synthesis_journal_entries', JSON.stringify(entries));
+        setSavedId(entryData.id);
+
+        setLastSaved(new Date());
+        onSave(entryData);
+      }
     } catch (error) {
       console.error('Failed to save entry:', error);
       toast.error('Fehler beim Speichern. Bitte versuche es erneut.');
     } finally {
       setIsSaving(false);
     }
-  }, [title, content, tags, mood, entry, onSave, onCancel]);
+  }, [title, content, tags, mood, entry, savedId, accessToken, onSave, onCancel]);
 
   const handleDelete = async () => {
-    if (!entry?.id) return;
+    if (!savedId) return;
     setShowDeleteDialog(false);
     try {
-      const stored = localStorage.getItem('synthesis_journal_entries');
-      const entries: JournalEntry[] = stored ? JSON.parse(stored) : [];
-      const filtered = entries.filter(e => e.id !== entry.id);
-      localStorage.setItem('synthesis_journal_entries', JSON.stringify(filtered));
-      onDelete?.(entry.id);
+      if (accessToken) {
+        await deleteEntry(accessToken, savedId);
+      } else {
+        const stored = localStorage.getItem('synthesis_journal_entries');
+        const entries: JournalEntry[] = stored ? JSON.parse(stored) : [];
+        const filtered = entries.filter(e => e.id !== savedId);
+        localStorage.setItem('synthesis_journal_entries', JSON.stringify(filtered));
+      }
+      onDelete?.(savedId);
     } catch (error) {
       console.error('Failed to delete entry:', error);
       toast.error('Fehler beim Löschen. Bitte versuche es erneut.');
@@ -194,10 +217,12 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg">
             <Lock className="w-4 h-4 text-slate-400" />
-            <span className="text-xs text-slate-400">Nur lokal in diesem Browser</span>
+            <span className="text-xs text-slate-400">
+              {accessToken ? 'Mit deinem Konto verknüpft' : 'Nur lokal in diesem Browser'}
+            </span>
           </div>
           
-          {entry?.id && onDelete && (
+          {savedId && onDelete && (
             <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" size="icon" className="hover:bg-red-500/20 text-red-400">
@@ -317,9 +342,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Schreibe hier deine Gedanken, Beobachtungen und Erkenntnisse...
-
-Dieser Eintrag wird nur lokal in diesem Browser gespeichert (nicht verschlüsselt, nicht synchronisiert)."
+          placeholder="Schreibe hier deine Gedanken, Beobachtungen und Erkenntnisse..."
           className="w-full h-full bg-transparent resize-none outline-none text-slate-200 leading-relaxed"
           style={{ minHeight: '300px' }}
         />
@@ -333,7 +356,7 @@ Dieser Eintrag wird nur lokal in diesem Browser gespeichert (nicht verschlüssel
         </div>
         <div className="flex items-center gap-2">
           <Shield className="w-4 h-4" />
-          <span>Nur lokal gespeichert</span>
+          <span>{accessToken ? 'Sicher mit deinem Konto verknüpft' : 'Nur lokal gespeichert'}</span>
         </div>
       </div>
     </motion.div>

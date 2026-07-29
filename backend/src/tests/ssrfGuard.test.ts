@@ -1,4 +1,29 @@
+/**
+ * SSRF guard tests.
+ *
+ * The `dns` module is mocked at the boundary: by default lookup delegates
+ * to the real resolver (literal IPs echo back without network, so the
+ * pre-existing cases stay hermetic), while the "DNS resolution" describe
+ * overrides it to drive the resolve-and-check path in
+ * assertSafeOutboundUrl (ssrfGuard.ts:79-89) deterministically.
+ */
+
+jest.mock('dns', () => {
+  const actual = jest.requireActual<typeof import('dns')>('dns');
+  return {
+    ...actual,
+    promises: {
+      ...actual.promises,
+      lookup: jest.fn((...args: any[]) => (actual.promises.lookup as any)(...args)),
+    },
+  };
+});
+
+import * as dns from 'dns';
 import { isPrivateOrReservedIp, assertSafeOutboundUrl } from '../lib/ssrfGuard';
+
+const mockLookup = dns.promises.lookup as jest.Mock;
+const realLookup = jest.requireActual<typeof import('dns')>('dns').promises.lookup;
 
 describe('isPrivateOrReservedIp', () => {
   test('flags standard private/loopback/link-local IPv4 ranges', () => {
@@ -54,5 +79,70 @@ describe('assertSafeOutboundUrl', () => {
 
   test('accepts a literal public IP', async () => {
     await expect(assertSafeOutboundUrl('https://8.8.8.8')).resolves.toBeUndefined();
+  });
+
+  describe('DNS resolution path (mocked resolver)', () => {
+    afterEach(() => {
+      // Restore the pass-through to the real resolver for the other cases.
+      mockLookup.mockImplementation((...args: any[]) => (realLookup as any)(...args));
+    });
+
+    test('rejects a hostname that resolves to a private address', async () => {
+      mockLookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
+
+      await expect(assertSafeOutboundUrl('https://evil.example.com')).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'BLOCKED_BASE_URL',
+      });
+    });
+
+    test('rejects when ANY resolved address is private (round-robin DNS)', async () => {
+      mockLookup.mockResolvedValue([
+        { address: '93.184.216.34', family: 4 },
+        { address: '192.168.1.10', family: 4 },
+      ]);
+
+      await expect(assertSafeOutboundUrl('https://dualhomed.example.com')).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'BLOCKED_BASE_URL',
+      });
+    });
+
+    test('rejects a hostname resolving to the cloud metadata address', async () => {
+      mockLookup.mockResolvedValue([{ address: '169.254.169.254', family: 4 }]);
+
+      await expect(assertSafeOutboundUrl('http://metadata.example.com/latest/meta-data')).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'BLOCKED_BASE_URL',
+      });
+    });
+
+    test('allows a hostname that resolves only to public addresses', async () => {
+      mockLookup.mockResolvedValue([
+        { address: '93.184.216.34', family: 4 },
+        { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 },
+      ]);
+
+      await expect(assertSafeOutboundUrl('https://example.com')).resolves.toBeUndefined();
+      expect(mockLookup).toHaveBeenCalledWith('example.com', { all: true, verbatim: true });
+    });
+
+    test('rejects with DNS_RESOLUTION_FAILED when lookup throws', async () => {
+      mockLookup.mockRejectedValue(new Error('getaddrinfo ENOTFOUND dead.example.com'));
+
+      await expect(assertSafeOutboundUrl('https://dead.example.com')).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'DNS_RESOLUTION_FAILED',
+      });
+    });
+
+    test('rejects when lookup returns no addresses', async () => {
+      mockLookup.mockResolvedValue([]);
+
+      await expect(assertSafeOutboundUrl('https://empty.example.com')).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'BLOCKED_BASE_URL',
+      });
+    });
   });
 });

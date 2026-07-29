@@ -1,40 +1,43 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate, AuthenticatedRequest, requireTier } from '../middleware/auth';
 import { coachingLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
+import { getOrCreateDailyCoaching, LLMCredentials } from '../services/coaching';
+import { AIProxyRequest } from '../services/aiProvider';
 
 const router: Router = Router();
+
+const AI_PROVIDERS: Array<AIProxyRequest['provider']> = ['openai', 'anthropic', 'google', 'custom'];
+
+/**
+ * Extract optional BYOK credentials from the request headers. The frontend
+ * sends the user's own AI key (X-AI-API-Key, plus optional provider/model/
+ * base-url headers); without a key the deterministic fallback impulse is
+ * used instead of an LLM call.
+ */
+function getLLMCredentials(req: AuthenticatedRequest): LLMCredentials | undefined {
+  const apiKey = req.headers['x-ai-api-key'] as string | undefined;
+  if (!apiKey) return undefined;
+
+  const providerHeader = (req.headers['x-ai-provider'] as string | undefined) ?? 'openai';
+  const provider = AI_PROVIDERS.includes(providerHeader as AIProxyRequest['provider'])
+    ? (providerHeader as AIProxyRequest['provider'])
+    : 'openai';
+
+  return {
+    provider,
+    apiKey,
+    model: req.headers['x-ai-model'] as string | undefined,
+    baseUrl: req.headers['x-ai-base-url'] as string | undefined,
+  };
+}
 
 // Get daily coaching impulse
 router.get('/daily', authenticate, requireTier(['PREMIUM', 'PRO']), coachingLimiter, asyncHandler(async (req: AuthenticatedRequest, res) => {
   const userId = req.user!.userId;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
-  // Check if today's impulse already exists
-  let coaching = await prisma.dailyCoaching.findUnique({
-    where: {
-      userId_date: {
-        userId,
-        date: today,
-      },
-    },
-  });
-
-  if (!coaching) {
-    // Generate new impulse (in production, this would call the AI service)
-    // For now, return a placeholder
-    coaching = await prisma.dailyCoaching.create({
-      data: {
-        userId,
-        date: today,
-        transitData: { sunGate: 1, moonGate: 2 }, // Placeholder
-        impulseText: 'Heute ist ein guter Tag, um innezuhalten und auf deine innere Autorität zu hören.',
-      },
-    });
-  }
+  const coaching = await getOrCreateDailyCoaching(userId, getLLMCredentials(req));
 
   res.json({
     date: coaching.date,

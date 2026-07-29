@@ -11,6 +11,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
+import { CHANNELS } from './hdConstants';
 
 // Try to import sweph, fallback to mock if not available
 let sweph: any;
@@ -167,21 +168,23 @@ function ensureInitialized(): void {
 // PLANET CONSTANTS
 // ============================================================================
 
-// Swiss Ephemeris planet IDs (fallback to hardcoded values if sweph unavailable)
+// Swiss Ephemeris planet IDs. Constants live under sweph.constants, not on
+// the module directly (fallback to hardcoded values if sweph unavailable).
+const SE = sweph?.constants;
 export const PLANETS = {
-  SUN: sweph?.SE_SUN ?? 0,
-  MOON: sweph?.SE_MOON ?? 1,
-  MERCURY: sweph?.SE_MERCURY ?? 2,
-  VENUS: sweph?.SE_VENUS ?? 3,
-  MARS: sweph?.SE_MARS ?? 4,
-  JUPITER: sweph?.SE_JUPITER ?? 5,
-  SATURN: sweph?.SE_SATURN ?? 6,
-  URANUS: sweph?.SE_URANUS ?? 7,
-  NEPTUNE: sweph?.SE_NEPTUNE ?? 8,
-  PLUTO: sweph?.SE_PLUTO ?? 9,
-  MEAN_NODE: sweph?.SE_MEAN_NODE ?? 10,
-  TRUE_NODE: sweph?.SE_TRUE_NODE ?? 11,
-  CHIRON: sweph?.SE_CHIRON ?? 15,
+  SUN: SE?.SE_SUN ?? 0,
+  MOON: SE?.SE_MOON ?? 1,
+  MERCURY: SE?.SE_MERCURY ?? 2,
+  VENUS: SE?.SE_VENUS ?? 3,
+  MARS: SE?.SE_MARS ?? 4,
+  JUPITER: SE?.SE_JUPITER ?? 5,
+  SATURN: SE?.SE_SATURN ?? 6,
+  URANUS: SE?.SE_URANUS ?? 7,
+  NEPTUNE: SE?.SE_NEPTUNE ?? 8,
+  PLUTO: SE?.SE_PLUTO ?? 9,
+  MEAN_NODE: SE?.SE_MEAN_NODE ?? 10,
+  TRUE_NODE: SE?.SE_TRUE_NODE ?? 11,
+  CHIRON: SE?.SE_CHIRON ?? 15,
 } as const;
 
 // Human Design Mandala - Gates in correct order
@@ -239,16 +242,24 @@ export function calculateJulianDay(birthData: BirthData): number {
   const { year, month, day, hour, minute, timezone } = birthData;
   // Convert local time to UT
   const hourUT = hour - timezone;
-  return sweph.julday(year, month, day, hourUT + minute / 60, sweph.SE_GREG_CAL);
+  // sweph.SE_GREG_CAL does not exist (constants live under sweph.constants);
+  // passing undefined here left the calendar system unspecified.
+  return sweph.julday(year, month, day, hourUT + minute / 60, sweph.constants?.SE_GREG_CAL ?? 1);
 }
 
 /**
  * Calculate planet position with PROFESSIONAL accuracy
  */
+// Geocentric tropical ECLIPTIC longitude, with speed data for retrograde
+// detection and the Design-Sun Newton iteration below. Using the equatorial
+// frame here would return right ascension instead of ecliptic longitude,
+// which silently misassigns HD gates (the 64-gate mandala is ecliptic-based).
+const CALC_FLAGS = (sweph?.constants?.SEFLG_SWIEPH ?? 2) | (sweph?.constants?.SEFLG_SPEED ?? 256);
+
 export function calculatePlanet(jd: number, planet: number): PlanetPosition {
   ensureInitialized();
-  
-  const flags = sweph.SE_EQUATORIAL;
+
+  const flags = CALC_FLAGS;
   const result = sweph.calc_ut(jd, planet, flags);
   
   return {
@@ -373,9 +384,9 @@ export function calculateHDMoments(
   includeOuter = true
 ): { design: Map<string, PlanetPosition>; personality: Map<string, PlanetPosition> } {
   ensureInitialized();
-  
-  const flags = sweph.SE_EQUATORIAL;
-  
+
+  const flags = CALC_FLAGS;
+
   // 1. Get birth sun longitude
   const birthSun = sweph.calc_ut(birthJd, PLANETS.SUN, flags);
   const birthSunLon = birthSun.data[0];
@@ -471,32 +482,96 @@ export function closeEphemeris(): void {
 // TRANSIT CALCULATIONS
 // ============================================================================
 
+export interface TransitPlanet {
+  name: string;
+  longitude: number;
+  gate: number;
+  line: number;
+  color: number;
+  tone: number;
+  base: number;
+  retrograde: boolean;
+  zodiacSign: string;
+  zodiacDegree: number;
+}
+
 export interface DailyTransit {
   date: string;
-  planets: Array<{
-    name: string;
-    longitude: number;
-    gate: number;
-    line: number;
-  }>;
-  moon_phase: string;
+  planets: TransitPlanet[];
+  moonPhase: string;
+  activeGates: number[];
+  dailyTheme: string;
+}
+
+export interface PlanetTransit {
+  planet: string;
+  transitGate: number;
+  natalGate: number;
+  aspect: string;
+  influence: string;
 }
 
 export interface TransitComparison {
   date: string;
+  transits: PlanetTransit[];
   activatedGates: number[];
   activatedChannels: Array<[number, number]>;
+  themes: string[];
   summary: string;
 }
 
-const CHANNELS: [number, number][] = [
-  [1, 8], [2, 14], [3, 60], [4, 63], [5, 15], [6, 59],
-  [7, 31], [9, 52], [10, 20], [10, 34], [10, 57], [11, 56],
-  [12, 22], [13, 33], [16, 48], [17, 62], [18, 58], [19, 49],
-  [20, 34], [20, 57], [21, 45], [23, 43], [24, 61], [25, 51],
-  [26, 44], [27, 50], [28, 38], [29, 46], [30, 41], [32, 54],
-  [34, 57], [35, 36], [37, 40], [39, 55], [42, 53], [47, 64],
+// Planets tracked as daily transits (mirrors the retired Rust transit
+// module). Earth/Chiron are part of the natal chart's 13 activations but
+// are conventionally left out of day-to-day transit tracking.
+const TRANSIT_PLANETS: Array<{ key: string; name: string; trackRetrograde: boolean }> = [
+  { key: 'SUN', name: 'Sonne', trackRetrograde: false },
+  { key: 'MOON', name: 'Mond', trackRetrograde: false },
+  { key: 'MERCURY', name: 'Merkur', trackRetrograde: true },
+  { key: 'VENUS', name: 'Venus', trackRetrograde: true },
+  { key: 'MARS', name: 'Mars', trackRetrograde: true },
+  { key: 'JUPITER', name: 'Jupiter', trackRetrograde: true },
+  { key: 'SATURN', name: 'Saturn', trackRetrograde: true },
+  { key: 'URANUS', name: 'Uranus', trackRetrograde: true },
+  { key: 'NEPTUNE', name: 'Neptun', trackRetrograde: true },
+  { key: 'PLUTO', name: 'Pluto', trackRetrograde: true },
+  { key: 'MEAN_NODE', name: 'Nordknoten', trackRetrograde: false },
 ];
+
+const ZODIAC_SIGNS = [
+  'Widder', 'Stier', 'Zwillinge', 'Krebs', 'Löwe', 'Jungfrau',
+  'Waage', 'Skorpion', 'Schütze', 'Steinbock', 'Wassermann', 'Fische',
+];
+
+const DAILY_THEMES: Record<number, string> = {
+  1: 'Selbstausdruck & Kreativität', 2: 'Rezeptivität & Empfangen', 3: 'Mutation & Veränderung',
+  4: 'Formulierung & Antworten', 5: 'Rhythmus & Muster', 6: 'Intimität & Konflikt',
+  7: 'Führung & Rolle', 8: 'Beitrag & Einfluss', 9: 'Konzentration & Fokus',
+  10: 'Selbstverhalten & Identität', 11: 'Ideen & Inspiration', 12: 'Vorsicht & Standhaftigkeit',
+  13: 'Zuhören & Geheimnisse', 14: 'Macht & Vermögen', 15: 'Extreme & Rhythmen',
+  16: 'Enthusiasmus & Fähigkeiten', 17: 'Meinungen & Überzeugungen', 18: 'Korrektur & Perfektion',
+  19: 'Bedürfnisse & Wünsche', 20: 'Jetzt & Gegenwart', 21: 'Kontrolle & Durchsetzung',
+  22: 'Offenheit & Scham', 23: 'Vereinfachung & Assimilation', 24: 'Rückkehr & Wiederholung',
+  25: 'Unschuld & Liebe', 26: 'Täuschung & Manipulation', 27: 'Fürsorge & Ernährung',
+  28: 'Risiko & Tiefe', 29: 'Commitment & Ja-Sagen', 30: 'Intensität & Gefühl',
+  31: 'Einfluss & Führung', 32: 'Kontinuität & Erinnerung', 33: 'Rückzug & Privatsphäre',
+  34: 'Macht & Autorität', 35: 'Veränderung & Fortschritt', 36: 'Krise & Erfahrung',
+  37: 'Freundschaft & Gemeinschaft', 38: 'Kampf & Druck', 39: 'Provokation & Konfrontation',
+  40: 'Einsamkeit & Übertragung', 41: 'Phantasie & Träume', 42: 'Wachstum & Reifung',
+  43: 'Einsicht & Verständnis', 44: 'Instinkt & Überleben', 45: 'Sammlung & Besitz',
+  46: 'Determination & Serendipität', 47: 'Realisation & Abstraktion', 48: 'Tiefe & Kompetenz',
+  49: 'Prinzipien & Revolution', 50: 'Werte & Gesetze', 51: 'Schock & Erweckung',
+  52: 'Inaktivität & Konzentration', 53: 'Beginn & Start', 54: 'Transformation & Antrieb',
+  55: 'Freiheit & Geist', 56: 'Wanderung & Suche', 57: 'Intuition & Klarheit',
+  58: 'Vitalität & Lebendigkeit', 59: 'Sexualität & Verbindung', 60: 'Einschränkung & Akzeptanz',
+  61: 'Mysterium & Wissen', 62: 'Details & Fakten', 63: 'Zweifel & Verdacht',
+  64: 'Verwirrung & Vor-Logik',
+};
+
+function longitudeToZodiac(longitude: number): { sign: string; degree: number } {
+  const normalized = ((longitude % 360) + 360) % 360;
+  const signIndex = Math.floor(normalized / 30);
+  return { sign: ZODIAC_SIGNS[signIndex % 12], degree: normalized % 30 };
+}
 
 function getMoonPhase(sunLon: number, moonLon: number): string {
   const diff = ((moonLon - sunLon) % 360 + 360) % 360;
@@ -512,35 +587,51 @@ function getMoonPhase(sunLon: number, moonLon: number): string {
 
 export function calculateDailyTransit(year: number, month: number, day: number): DailyTransit {
   ensureInitialized();
-  
+
   const jd = calculateJulianDay({
     year, month, day,
     hour: 12, minute: 0,
     latitude: 0, longitude: 0, timezone: 0,
   });
-  
-  const planets = calculateAllPlanets(jd, false);
-  
-  const planetList: DailyTransit['planets'] = [];
-  for (const [name, pos] of planets) {
+
+  const allPlanets = calculateAllPlanets(jd, true);
+
+  const planetList: TransitPlanet[] = [];
+  for (const { key, name, trackRetrograde } of TRANSIT_PLANETS) {
+    const pos = allPlanets.get(key);
+    if (!pos) continue;
+
     const gate = longitudeToGate(pos.longitude);
     const details = calculateHDDetails(pos.longitude);
+    const { sign, degree } = longitudeToZodiac(pos.longitude);
+
     planetList.push({
-      name: name === 'MOON' ? 'Mond' : name === 'SUN' ? 'Sonne' : name,
+      name,
       longitude: pos.longitude,
       gate,
       line: details.line,
+      color: details.color,
+      tone: details.tone,
+      base: details.base,
+      retrograde: trackRetrograde && pos.longitudeSpeed < 0,
+      zodiacSign: sign,
+      zodiacDegree: degree,
     });
   }
-  
-  const sunPos = planets.get('SUN');
-  const moonPos = planets.get('MOON');
+
+  const sunPos = allPlanets.get('SUN');
+  const moonPos = allPlanets.get('MOON');
   const moonPhase = sunPos && moonPos ? getMoonPhase(sunPos.longitude, moonPos.longitude) : 'unknown';
-  
+
+  const activeGates = planetList.map((p) => p.gate);
+  const sunGate = planetList.find((p) => p.name === 'Sonne')?.gate ?? 1;
+
   return {
     date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
     planets: planetList,
-    moon_phase: moonPhase,
+    moonPhase,
+    activeGates,
+    dailyTheme: DAILY_THEMES[sunGate] ?? 'Allgemeine Transformation',
   };
 }
 
@@ -551,17 +642,28 @@ export function compareTransitToNatal(
   natalGates: number[]
 ): TransitComparison {
   const transit = calculateDailyTransit(year, month, day);
-  
-  const transitGates = new Set(transit.planets.map(p => p.gate));
+
+  const transitGates = new Set(transit.planets.map((p) => p.gate));
   const natalSet = new Set(natalGates);
-  
+
   const activatedGates: number[] = [];
-  for (const gate of natalSet) {
-    if (transitGates.has(gate)) {
-      activatedGates.push(gate);
+  const transitsHit: PlanetTransit[] = [];
+  const themes: string[] = [];
+
+  for (const planet of transit.planets) {
+    if (natalSet.has(planet.gate)) {
+      activatedGates.push(planet.gate);
+      transitsHit.push({
+        planet: planet.name,
+        transitGate: planet.gate,
+        natalGate: planet.gate,
+        aspect: `${planet.name} transitiert Tor ${planet.gate}`,
+        influence: `${planet.name} aktiviert dein natales Tor ${planet.gate}`,
+      });
+      themes.push(`${planet.name}-Energie aktiviert`);
     }
   }
-  
+
   const activatedChannels: Array<[number, number]> = [];
   for (const [g1, g2] of CHANNELS) {
     if (transitGates.has(g1) && natalSet.has(g2)) {
@@ -573,12 +675,17 @@ export function compareTransitToNatal(
       }
     }
   }
-  
+
+  const uniqueGates = Array.from(new Set(activatedGates)).sort((a, b) => a - b);
+  const uniqueThemes = Array.from(new Set(themes)).sort();
+
   return {
     date: transit.date,
-    activatedGates,
+    transits: transitsHit,
+    activatedGates: uniqueGates,
     activatedChannels,
-    summary: `${activatedGates.length} Gates und ${activatedChannels.length} Kanäle aktiviert`,
+    themes: uniqueThemes,
+    summary: `${uniqueGates.length} Gates und ${activatedChannels.length} Kanäle aktiviert`,
   };
 }
 

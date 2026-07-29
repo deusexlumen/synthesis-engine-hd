@@ -23,6 +23,17 @@ export const SE_GREG_CAL = 1;
 
 // Flags
 export const SE_EQUATORIAL = 2;
+export const SEFLG_SWIEPH = 2;
+export const SEFLG_SPEED = 256;
+
+// The real `sweph` package nests all constants under `.constants`
+// (sweph.constants.SE_SUN, not sweph.SE_SUN) — mirror that shape here so the
+// mock doesn't diverge from the real module's access pattern.
+export const constants = {
+  SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
+  SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_MEAN_NODE, SE_TRUE_NODE, SE_CHIRON,
+  SE_GREG_CAL, SE_EQUATORIAL, SEFLG_SWIEPH, SEFLG_SPEED,
+};
 
 // Deterministic fake positions for each planet (longitude in degrees)
 const FAKE_POSITIONS: Record<number, number> = {

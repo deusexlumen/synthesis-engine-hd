@@ -25,7 +25,7 @@ interface AIConfigState extends AIConfig {
 
 const defaultModels: Record<AIProvider, string> = {
   openai: 'gpt-4o-mini',
-  anthropic: 'claude-3-haiku-20240307',
+  anthropic: 'claude-haiku-4-5',
   google: 'gemini-pro',
   custom: '',
   disabled: '',
@@ -92,9 +92,9 @@ export const providerModels: Record<AIProvider, { value: string; label: string; 
     { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', description: 'Schnell und günstig' },
   ],
   anthropic: [
-    { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus', description: 'Höchste Qualität' },
-    { value: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet', description: 'Gute Balance' },
-    { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku', description: 'Schnell und günstig' },
+    { value: 'claude-opus-4-8', label: 'Claude Opus 4.8', description: 'Höchste Qualität' },
+    { value: 'claude-sonnet-5', label: 'Claude Sonnet 5', description: 'Gute Balance' },
+    { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', description: 'Schnell und günstig' },
   ],
   google: [
     { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', description: 'Googles bestes Modell' },

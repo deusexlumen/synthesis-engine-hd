@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { invokeSafe, isTauri } from '@/lib/tauri';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Save, Lock, Unlock, Trash2, Calendar, Clock,
@@ -98,24 +97,15 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         lastModified: new Date().toISOString(),
       };
 
-      if (isTauri()) {
-        // Encrypt and save via Tauri
-        await invokeSafe('save_journal_entry', {
-          entryId: entryData.id,
-          content: JSON.stringify(entryData),
-        });
+      const stored = localStorage.getItem('synthesis_journal_entries');
+      const entries: JournalEntry[] = stored ? JSON.parse(stored) : [];
+      const idx = entries.findIndex(e => e.id === entryData.id);
+      if (idx >= 0) {
+        entries[idx] = entryData;
       } else {
-        // Web fallback: store in localStorage
-        const stored = localStorage.getItem('synthesis_journal_entries');
-        const entries: JournalEntry[] = stored ? JSON.parse(stored) : [];
-        const idx = entries.findIndex(e => e.id === entryData.id);
-        if (idx >= 0) {
-          entries[idx] = entryData;
-        } else {
-          entries.push(entryData);
-        }
-        localStorage.setItem('synthesis_journal_entries', JSON.stringify(entries));
+        entries.push(entryData);
       }
+      localStorage.setItem('synthesis_journal_entries', JSON.stringify(entries));
 
       setLastSaved(new Date());
       onSave(entryData);
@@ -131,16 +121,10 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
     if (!entry?.id) return;
     setShowDeleteDialog(false);
     try {
-      if (isTauri()) {
-        await invokeSafe('delete_journal_entry_command', {
-          entryId: entry.id,
-        });
-      } else {
-        const stored = localStorage.getItem('synthesis_journal_entries');
-        const entries: JournalEntry[] = stored ? JSON.parse(stored) : [];
-        const filtered = entries.filter(e => e.id !== entry.id);
-        localStorage.setItem('synthesis_journal_entries', JSON.stringify(filtered));
-      }
+      const stored = localStorage.getItem('synthesis_journal_entries');
+      const entries: JournalEntry[] = stored ? JSON.parse(stored) : [];
+      const filtered = entries.filter(e => e.id !== entry.id);
+      localStorage.setItem('synthesis_journal_entries', JSON.stringify(filtered));
       onDelete?.(entry.id);
     } catch (error) {
       console.error('Failed to delete entry:', error);
@@ -211,9 +195,9 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 rounded-lg">
-            <Lock className="w-4 h-4 text-green-400" />
-            <span className="text-xs text-green-400">AES-256 Verschlüsselt</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg">
+            <Lock className="w-4 h-4 text-slate-400" />
+            <span className="text-xs text-slate-400">Nur lokal in diesem Browser</span>
           </div>
           
           {entry?.id && onDelete && (
@@ -338,7 +322,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           onChange={(e) => setContent(e.target.value)}
           placeholder="Schreibe hier deine Gedanken, Beobachtungen und Erkenntnisse...
 
-Dieser Eintrag wird mit AES-256-GCM verschlüsselt auf deinem Gerät gespeichert."
+Dieser Eintrag wird nur lokal in diesem Browser gespeichert (nicht verschlüsselt, nicht synchronisiert)."
           className="w-full h-full bg-transparent resize-none outline-none text-slate-200 leading-relaxed"
           style={{ minHeight: '300px' }}
         />
@@ -352,7 +336,7 @@ Dieser Eintrag wird mit AES-256-GCM verschlüsselt auf deinem Gerät gespeichert
         </div>
         <div className="flex items-center gap-2">
           <Shield className="w-4 h-4" />
-          <span>Lokale Verschlüsselung</span>
+          <span>Nur lokal gespeichert</span>
         </div>
       </div>
     </motion.div>

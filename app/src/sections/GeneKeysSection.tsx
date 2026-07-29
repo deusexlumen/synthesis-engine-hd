@@ -1,94 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { GeneKeysDisplay } from '../components/GeneKeysDisplay';
 import { Sparkles, BookOpen, Dna, Quote } from 'lucide-react';
-import { GeneKeyProfile, calculateGeneKeyProfile } from '../lib/geneKeys';
-
-interface HumanDesignChart {
-  energy_type: string;
-  authority: string;
-  profile: string;
-  gates: Array<{
-    number: number;
-    line: number;
-    color: number;
-    tone: number;
-    base: number;
-    planet: string;
-    is_design: boolean;
-  }>;
-}
+import { calculateGeneKeyProfile } from '../lib/geneKeys';
+import { useHDChart } from '@/stores/appStore';
 
 export const GeneKeysSection: React.FC = () => {
-  const [profile, setProfile] = useState<GeneKeyProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [hasBirthData, setHasBirthData] = useState(false);
+  // Single source of truth: the chart computed during onboarding and held
+  // in the shared Zustand store — no separate localStorage read/recompute.
+  const hdChart = useHDChart();
 
-  useEffect(() => {
-    loadGeneKeyProfile();
-  }, []);
+  const profile = useMemo(() => {
+    if (!hdChart) return null;
 
-  const loadGeneKeyProfile = async () => {
-    try {
-      setLoading(true);
-      
-      // Check for stored profile
-      const stored = localStorage.getItem('synthesis_profile');
-      if (stored) {
-        const data = JSON.parse(stored);
-        if (data.humanDesign?.gates) {
-          const hdChart: HumanDesignChart = data.humanDesign;
-          
-          // Extract gates by planet
-          const getGateByPlanet = (planet: string) => {
-            const gate = hdChart.gates.find(g => g.planet === planet && !g.is_design);
-            return gate?.number || 1;
-          };
+    const getGateByPlanet = (planet: string) => {
+      const gate = hdChart.gates.find((g) => g.planet === planet && !g.isDesign);
+      return gate?.number || 1;
+    };
 
-          const geneKeyProfile = calculateGeneKeyProfile(
-            getGateByPlanet('SUN'),
-            getGateByPlanet('EARTH'),
-            getGateByPlanet('MOON'),
-            getGateByPlanet('MERCURY'),
-            getGateByPlanet('VENUS'),
-            getGateByPlanet('MARS'),
-            getGateByPlanet('JUPITER'),
-            getGateByPlanet('SATURN'),
-            getGateByPlanet('URANUS'),
-            getGateByPlanet('NEPTUNE'),
-            getGateByPlanet('PLUTO'),
-            getGateByPlanet('NORTH_NODE')
-          );
-
-          setProfile(geneKeyProfile);
-          setHasBirthData(true);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Check for birth data
-      const birthData = localStorage.getItem('synthesis_birth_data');
-      setHasBirthData(!!birthData);
-      
-    } catch (error) {
-      console.error('Error loading Gene Key profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-          className="w-12 h-12 border-4 border-violet-500/30 border-t-violet-500 rounded-full"
-        />
-      </div>
+    return calculateGeneKeyProfile(
+      getGateByPlanet('SUN'),
+      getGateByPlanet('EARTH'),
+      getGateByPlanet('MOON'),
+      getGateByPlanet('MERCURY'),
+      getGateByPlanet('VENUS'),
+      getGateByPlanet('MARS'),
+      getGateByPlanet('JUPITER'),
+      getGateByPlanet('SATURN'),
+      getGateByPlanet('URANUS'),
+      getGateByPlanet('NEPTUNE'),
+      getGateByPlanet('PLUTO'),
+      getGateByPlanet('NORTH_NODE')
     );
-  }
+  }, [hdChart]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">

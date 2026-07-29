@@ -5,6 +5,7 @@
 
 import type { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import { Prisma } from '@prisma/client';
 
 /**
  * Custom API Error
@@ -70,6 +71,28 @@ export function errorHandler(
       code: err.code,
     });
     return;
+  }
+
+  // Handle Prisma constraint/lookup errors that reach here uncaught (a
+  // route-level catch is still preferred where the exact conflicting field
+  // matters, but this keeps any miss from surfacing as a raw 500).
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === 'P2002') {
+      res.status(409).json({
+        success: false,
+        error: 'A record with this value already exists',
+        code: 'UNIQUE_CONSTRAINT_VIOLATION',
+      });
+      return;
+    }
+    if (err.code === 'P2025') {
+      res.status(404).json({
+        success: false,
+        error: 'Record not found',
+        code: 'RECORD_NOT_FOUND',
+      });
+      return;
+    }
   }
 
   // Handle JWT errors

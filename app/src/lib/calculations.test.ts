@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { calculateMillmanProfile } from './millmanCalculations';
 
 // Human Design Gate calculation tests
 describe('Human Design Calculations', () => {
@@ -109,6 +110,21 @@ describe('Numerology Calculations', () => {
 
     // Test: "Anna" = 1+5+5+1 = 12 -> 1+2 = 3
     expect(calculateExpression('Anna')).toBe(3);
+  });
+
+  it('stops reducing at a master number reached mid-reduction (not just as raw input)', () => {
+    // Day 29 -> digit sum 2+9 = 11, a master number. A buggy reducer that
+    // only checks the master-number set on the *original* input (29, not
+    // in [11,22,33,44]) reduces straight through to 1+1 = 2, losing the
+    // master number. root1 mirrors the day reduction directly, so it's a
+    // precise probe for this regression.
+    const profile = calculateMillmanProfile({
+      fullName: 'Test Person',
+      birthDate: '2000-03-29',
+    });
+
+    expect(profile.root1).toBe(11);
+    expect(profile.lifePathString).toBe('11-3-7');
   });
 });
 

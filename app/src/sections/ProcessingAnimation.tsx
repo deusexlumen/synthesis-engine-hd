@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/stores/appStore';
-import { invokeSafe, isTauri } from '@/lib/tauri';
+import { useAuthStore } from '@/stores/authStore';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, RotateCcw, Sparkles } from 'lucide-react';
 
@@ -19,55 +20,27 @@ export function ProcessingAnimation() {
   const [showReveal, setShowReveal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { userData, setHDChart, setMillmanProfile, setStep } = useAppStore();
+  const accessToken = useAuthStore((state) => state.tokens?.accessToken);
 
   useEffect(() => {
     if (!userData) return;
 
     const runCalculations = async () => {
       try {
-        if (!isTauri()) {
-          setError(
-            'Diese Version benötigt die Desktop-App für lokale Berechnungen. ' +
-            'Bitte installiere Synthesis Engine als Desktop-Anwendung.'
-          );
-          return;
-        }
+        const { hdChart, millmanProfile } = await api.calculateHD(
+          {
+            name: userData.fullName,
+            birthDate: userData.birthDate,
+            birthTime: userData.birthTime,
+            latitude: userData.latitude,
+            longitude: userData.longitude,
+            timezone: userData.timezone,
+          },
+          accessToken
+        );
 
-        const [year, month, day] = userData.birthDate.split('-').map(Number);
-        const [hour, minute] = userData.birthTime.split(':').map(Number);
-
-        const getTzOffset = (ianaTz: string, dateStr: string): number => {
-          try {
-            const d = new Date(dateStr + 'T12:00:00');
-            const fmt = new Intl.DateTimeFormat('en-US', { timeZone: ianaTz, timeZoneName: 'shortOffset' });
-            const parts = fmt.formatToParts(d);
-            const tzPart = parts.find((p) => p.type === 'timeZoneName')?.value || '';
-            const match = tzPart.match(/GMT([+-]\d+)/);
-            return match ? parseInt(match[1], 10) : 1;
-          } catch {
-            return 1;
-          }
-        };
-        const tzOffset = getTzOffset(userData.timezone, userData.birthDate);
-
-        const hdResult = await invokeSafe<HumanDesignChart>('calculate_human_design', {
-          year, month, day, hour, minute,
-          latitude: userData.latitude,
-          longitude: userData.longitude,
-          timezone: tzOffset,
-        });
-
-        const millmanResult = await invokeSafe<MillmanProfile>('calculate_numerology', {
-          birthDate: userData.birthDate,
-          fullName: userData.fullName,
-        });
-
-        if (!hdResult || !millmanResult) {
-          throw new Error('Berechnung hat keine Ergebnisse zurückgegeben. Prüfe deine Eingaben.');
-        }
-
-        setHDChart(hdResult as any);
-        setMillmanProfile(millmanResult);
+        setHDChart(hdChart);
+        setMillmanProfile(millmanProfile);
         setProgress(100);
         setShowReveal(true);
         setTimeout(() => setStep('results'), 1800);
@@ -259,34 +232,4 @@ export function ProcessingAnimation() {
       </AnimatePresence>
     </div>
   );
-}
-
-// Type definitions
-interface HumanDesignChart {
-  energyType: string;
-  authority: string;
-  profile: string;
-  profileLine1: number;
-  profileLine2: number;
-  incarnationCross: string;
-  definedCenters: string[];
-  undefinedCenters: string[];
-  gates: Array<{ number: number; line: number; color: number; tone: number; base: number; planet: string; isDesign: boolean }>;
-  channels: Array<{ gate1: number; gate2: number }>;
-  variables: { digestion: string; environment: string; awareness: string; motivation: string; sense: string; style: string };
-}
-
-interface MillmanProfile {
-  lifePathString: string;
-  root1: number;
-  root2: number;
-  baseSum: number;
-  destinyNumber: number;
-  hasMasterNumber: boolean;
-  hasZeroEnhancer: boolean;
-  soulUrgeString?: string;
-  expressionString?: string;
-  challenges: Array<{ ageRange: string; challengeNumber: number }>;
-  pinnacles: Array<{ ageRange: string; pinnacleNumber: number }>;
-  personalYear: number;
 }

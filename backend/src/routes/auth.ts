@@ -7,8 +7,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authService, rbacService, subscriptionService } from '../services/auth';
-import { authenticate, requireAuth } from '../middleware/auth';
+import { authenticate } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
+import { authLimiter } from '../middleware/rateLimit';
 
 const router: Router = Router();
 
@@ -51,6 +52,7 @@ const resetPasswordSchema = z.object({
  */
 router.post(
   '/register',
+  authLimiter,
   asyncHandler(async (req, res) => {
     const data = registerSchema.parse(req.body);
     
@@ -88,6 +90,7 @@ router.post(
  */
 router.post(
   '/login',
+  authLimiter,
   asyncHandler(async (req, res) => {
     const data = loginSchema.parse(req.body);
     
@@ -233,6 +236,7 @@ router.post(
  */
 router.post(
   '/forgot-password',
+  authLimiter,
   asyncHandler(async (req, res) => {
     const { email } = z.object({ email: z.string().email() }).parse(req.body);
     
@@ -259,6 +263,7 @@ router.post(
  */
 router.post(
   '/reset-password',
+  authLimiter,
   asyncHandler(async (req, res) => {
     const data = resetPasswordSchema.parse(req.body);
     

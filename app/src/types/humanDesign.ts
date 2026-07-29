@@ -153,6 +153,36 @@ export interface HDChartResponse {
   };
 }
 
+// ============================================================================
+// TRANSIT TYPES
+// ============================================================================
+
+export interface TransitPlanet {
+  name: string;
+  longitude: number;
+  gate: number;
+  line: number;
+  color: number;
+  tone: number;
+  base: number;
+  retrograde: boolean;
+  zodiacSign: string;
+  zodiacDegree: number;
+}
+
+export interface DailyTransit {
+  date: string;
+  planets: TransitPlanet[];
+  moonPhase: string;
+  activeGates: number[];
+  dailyTheme: string;
+}
+
+export interface DailyTransitResponse {
+  success: boolean;
+  data: DailyTransit;
+}
+
 export interface HealthCheckResponse {
   status: 'ok' | 'warning' | 'error';
   ephemeris: {

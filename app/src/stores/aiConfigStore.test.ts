@@ -60,7 +60,7 @@ describe.skip('aiConfigStore security', () => {
   it('must persist provider, model and settings without apiKey', async () => {
     useAIConfigStore.setState({
       provider: 'anthropic',
-      model: 'claude-3-sonnet-20240229',
+      model: 'claude-sonnet-5',
       temperature: 0.5,
       enabled: false,
     });
@@ -71,7 +71,7 @@ describe.skip('aiConfigStore security', () => {
     const parsed = JSON.parse(stored!);
 
     expect(parsed.state.provider).toBe('anthropic');
-    expect(parsed.state.model).toBe('claude-3-sonnet-20240229');
+    expect(parsed.state.model).toBe('claude-sonnet-5');
     expect(parsed.state.temperature).toBe(0.5);
     expect(parsed.state.enabled).toBe(false);
     expect(parsed.state.apiKey).toBeUndefined();

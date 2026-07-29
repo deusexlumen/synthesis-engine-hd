@@ -18,19 +18,19 @@ const KARMIC_DEBT_NUMBERS = [13, 14, 16, 19];
 // ============================================================================
 
 /**
- * Reduce a number to a single digit (1-9), unless it's a master number
+ * Reduce a number to a single digit (1-9), unless a master number (11, 22,
+ * 33, 44) is reached — including partway through the reduction, not just
+ * as the original input. E.g. 1993 -> 1+9+9+3 = 22 must stop at 22, not
+ * reduce further to 4.
  */
 function reduceNumber(num: number, allowMasters = true): number {
   if (num === 0) return 0;
 
-  // Check for master numbers
-  if (allowMasters && MASTER_NUMBERS.includes(num)) {
-    return num;
-  }
-
-  // Keep reducing until single digit
   let sum = num;
   while (sum > 9) {
+    if (allowMasters && MASTER_NUMBERS.includes(sum)) {
+      return sum;
+    }
     sum = String(sum)
       .split('')
       .reduce((acc, digit) => acc + parseInt(digit, 10), 0);

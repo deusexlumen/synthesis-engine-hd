@@ -1,47 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { invokeSafe, isTauri } from '@/lib/tauri';
+import { api } from '@/lib/api';
+import type { DailyTransit as TransitData } from '@/types/humanDesign';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Sun, Moon, Star, ArrowUpRight, ArrowDownRight, 
+import {
+  Sun, Moon, Star, ArrowUpRight, ArrowDownRight,
   Calendar, ChevronLeft, ChevronRight, Sparkles,
   Circle, Zap, Globe, Clock
 } from 'lucide-react';
 
-interface TransitPlanet {
-  name: string;
-  longitude: number;
-  gate: number;
-  line: number;
-  color: number;
-  tone: number;
-  base: number;
-  retrograde: boolean;
-  zodiac_sign: string;
-  zodiac_degree: number;
-}
-
-interface TransitData {
-  date: string;
-  planets: TransitPlanet[];
-  moon_phase: string;
-  active_gates: number[];
-  daily_theme: string;
+interface PlanetTransit {
+  planet: string;
+  transitGate: number;
+  natalGate?: number;
+  aspect: string;
+  influence: string;
 }
 
 interface TransitComparison {
-  date: string;
   transits: PlanetTransit[];
-  activated_gates: number[];
-  activated_channels: [number, number][];
   themes: string[];
 }
 
-interface PlanetTransit {
-  planet: string;
-  transit_gate: number;
-  natal_gate?: number;
-  aspect: string;
-  influence: string;
+/**
+ * Derives which of today's transiting planets activate the user's natal
+ * gates. Computed client-side from data the component already has
+ * (natalGates prop + the public daily-transit fetch) rather than calling
+ * the backend's authenticated /api/transit/compare, which reads from a
+ * *saved* HumanDesignProfile — a requirement guests and not-yet-saved
+ * charts don't meet.
+ */
+function compareToNatal(transit: TransitData, natalGates: number[]): TransitComparison {
+  const natalSet = new Set(natalGates);
+  const transits: PlanetTransit[] = [];
+  const themes = new Set<string>();
+
+  for (const planet of transit.planets) {
+    if (natalSet.has(planet.gate)) {
+      transits.push({
+        planet: planet.name,
+        transitGate: planet.gate,
+        natalGate: planet.gate,
+        aspect: `${planet.name} transitiert Tor ${planet.gate}`,
+        influence: `${planet.name} aktiviert dein natales Tor ${planet.gate}`,
+      });
+      themes.add(`${planet.name}-Energie aktiviert`);
+    }
+  }
+
+  return { transits, themes: Array.from(themes).sort() };
 }
 
 interface TransitDisplayProps {
@@ -108,35 +114,13 @@ export const TransitDisplay: React.FC<TransitDisplayProps> = ({
       setLoading(true);
       setError(null);
 
-      if (!isTauri()) {
-        setError('Transit-Daten sind in der Web-Version nicht verfügbar. Bitte verwende die Desktop-App.');
-        setLoading(false);
-        return;
-      }
-
-      const data = await invokeSafe<TransitData>('get_daily_transit', {
-        year: date.getFullYear(),
-        month: date.getMonth() + 1,
-        day: date.getDate(),
-      });
-
-      if (!data) {
-        setError('Keine Transit-Daten verfügbar');
-        setLoading(false);
-        return;
-      }
-
+      const data = await api.getDailyTransit(date);
       setTransitData(data);
 
-      // If natal gates provided, fetch comparison
       if (natalGates.length > 0) {
-        const comp = await invokeSafe<TransitComparison>('compare_transit_to_natal_command', {
-          year: date.getFullYear(),
-          month: date.getMonth() + 1,
-          day: date.getDate(),
-          natalGates,
-        });
-        if (comp) setComparison(comp);
+        setComparison(compareToNatal(data, natalGates));
+      } else {
+        setComparison(null);
       }
     } catch (err) {
       console.error('Transit fetch error:', err);
@@ -274,7 +258,7 @@ export const TransitDisplay: React.FC<TransitDisplayProps> = ({
           <Sparkles className="w-5 h-5 text-violet-400" />
           <h4 className="font-medium text-violet-300">Tägliches Theme</h4>
         </div>
-        <p className="text-lg">{transitData.daily_theme}</p>
+        <p className="text-lg">{transitData.dailyTheme}</p>
         {sunPlanet && (
           <p className="mt-2 text-sm text-slate-400">
             Sonne in Gate {sunPlanet.gate} · Linie {sunPlanet.line}
@@ -289,13 +273,13 @@ export const TransitDisplay: React.FC<TransitDisplayProps> = ({
         </div>
         <div>
           <p className="text-sm text-slate-400">Mondphase</p>
-          <p className="font-medium">{transitData.moon_phase}</p>
+          <p className="font-medium">{transitData.moonPhase}</p>
         </div>
         {moonPlanet && (
           <div className="ml-auto text-right">
             <p className="text-sm text-slate-400">Mond in</p>
             <p className="font-medium">
-              {zodiacSymbols[moonPlanet.zodiac_sign]} {moonPlanet.zodiac_sign}
+              {zodiacSymbols[moonPlanet.zodiacSign]} {moonPlanet.zodiacSign}
             </p>
           </div>
         )}
@@ -331,7 +315,7 @@ export const TransitDisplay: React.FC<TransitDisplayProps> = ({
                       <div>
                         <p className="font-medium">{planet.name}</p>
                         <p className="text-xs text-slate-400">
-                          {zodiacSymbols[planet.zodiac_sign]} {planet.zodiac_sign} {planet.zodiac_degree.toFixed(1)}°
+                          {zodiacSymbols[planet.zodiacSign]} {planet.zodiacSign} {planet.zodiacDegree.toFixed(1)}°
                         </p>
                       </div>
                     </div>
@@ -422,7 +406,7 @@ export const TransitDisplay: React.FC<TransitDisplayProps> = ({
       <div className="p-4 bg-white/5 rounded-xl">
         <p className="text-sm text-slate-400 mb-3">Aktive Gates heute</p>
         <div className="flex flex-wrap gap-2">
-          {transitData.active_gates.map((gate) => (
+          {transitData.activeGates.map((gate) => (
             <span
               key={gate}
               className={`w-10 h-10 flex items-center justify-center rounded-lg font-medium transition-all ${

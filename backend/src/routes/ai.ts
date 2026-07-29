@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { asyncHandler } from '../middleware/errorHandler';
+import { asyncHandler, APIError } from '../middleware/errorHandler';
 import { authenticate, AuthenticatedRequest, requireTier } from '../middleware/auth';
+import { assertSafeOutboundUrl } from '../lib/ssrfGuard';
 
 const router: Router = Router();
 
@@ -46,37 +47,7 @@ router.post('/proxy', authenticate, requireTier(['PREMIUM', 'PRO']), asyncHandle
         if (!data.baseUrl) {
           return res.status(400).json({ error: 'Base URL required for custom provider' });
         }
-        // SSRF protection: validate custom baseUrl
-        try {
-          const url = new URL(data.baseUrl);
-          const hostname = url.hostname.toLowerCase();
-          // Block private IPs and internal metadata endpoints
-          const blockedPatterns = [
-            /^localhost$/,
-            /^127\./,
-            /^10\./,
-            /^172\.(1[6-9]|2[0-9]|3[01])\./,
-            /^192\.168\./,
-            /^169\.254\./,
-            /^0\./,
-            /^::1$/,
-            /^fc00:/i,
-            /^fe80:/i,
-            /\.internal$/,
-            /\.local$/,
-            /metadata\.google\.internal$/,
-            /169\.254\.169\.254/,
-          ];
-          if (blockedPatterns.some(pattern => pattern.test(hostname))) {
-            return res.status(400).json({ error: 'Custom base URL points to a blocked/internal address' });
-          }
-          // Only allow http/https
-          if (!['http:', 'https:'].includes(url.protocol)) {
-            return res.status(400).json({ error: 'Custom base URL must use HTTP or HTTPS' });
-          }
-        } catch {
-          return res.status(400).json({ error: 'Invalid custom base URL' });
-        }
+        await assertSafeOutboundUrl(data.baseUrl);
         response = await callCustom(userApiKey, data);
         break;
       default:
@@ -85,8 +56,13 @@ router.post('/proxy', authenticate, requireTier(['PREMIUM', 'PRO']), asyncHandle
 
     res.json(response);
   } catch (error: any) {
+    // Preserve APIError's status/code (e.g. the SSRF check's 400) instead
+    // of flattening every failure into a 500 "AI provider error".
+    if (error instanceof APIError) {
+      throw error;
+    }
     console.error('AI proxy error:', error);
-    throw new Error(`AI provider error: ${error.message}`);
+    throw new APIError(`AI provider error: ${error.message}`, 502, 'AI_PROVIDER_ERROR');
   }
 }));
 
@@ -99,9 +75,9 @@ router.get('/models', authenticate, asyncHandler(async (req, res) => {
       { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Schnell und günstig' },
     ],
     anthropic: [
-      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Höchste Qualität' },
-      { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', description: 'Gute Balance' },
-      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', description: 'Schnell und günstig' },
+      { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', description: 'Höchste Qualität' },
+      { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', description: 'Gute Balance' },
+      { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', description: 'Schnell und günstig' },
     ],
     google: [
       { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Googles bestes Modell' },
@@ -125,9 +101,9 @@ router.post('/estimate-cost', authenticate, asyncHandler(async (req, res) => {
     'gpt-4o': { input: 0.005, output: 0.015 }, // per 1K tokens
     'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
     'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 },
-    'claude-3-opus-20240229': { input: 0.015, output: 0.075 },
-    'claude-3-sonnet-20240229': { input: 0.003, output: 0.015 },
-    'claude-3-haiku-20240307': { input: 0.00025, output: 0.00125 },
+    'claude-opus-4-8': { input: 0.005, output: 0.025 },
+    'claude-sonnet-5': { input: 0.003, output: 0.015 },
+    'claude-haiku-4-5': { input: 0.001, output: 0.005 },
     'gemini-1.5-pro': { input: 0.0035, output: 0.0105 },
     'gemini-1.5-flash': { input: 0.00035, output: 0.00105 },
     'gemini-pro': { input: 0.0005, output: 0.0015 },
@@ -182,6 +158,16 @@ async function callOpenAI(apiKey: string, data: any) {
 }
 
 async function callAnthropic(apiKey: string, data: any) {
+  // The Anthropic Messages API rejects role:"system" entries inside the
+  // messages array — system instructions go in a separate top-level
+  // `system` string. Sending them inline (as the OpenAI/Google shapes do)
+  // returns a 400 on every request that includes one.
+  const systemText = data.messages
+    .filter((m: any) => m.role === 'system')
+    .map((m: any) => m.content)
+    .join('\n\n');
+  const conversationMessages = data.messages.filter((m: any) => m.role !== 'system');
+
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -191,7 +177,8 @@ async function callAnthropic(apiKey: string, data: any) {
     },
     body: JSON.stringify({
       model: data.model,
-      messages: data.messages,
+      ...(systemText ? { system: systemText } : {}),
+      messages: conversationMessages,
       temperature: data.temperature,
       max_tokens: data.maxTokens,
     }),
@@ -207,12 +194,20 @@ async function callAnthropic(apiKey: string, data: any) {
 
 async function callGoogle(apiKey: string, data: any) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${data.model}:generateContent?key=${apiKey}`;
-  
-  // Convert OpenAI-style messages to Google format
-  const contents = data.messages.map((m: any) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }));
+
+  // Gemini has a dedicated systemInstruction field — mapping system
+  // messages into `contents` as a 'user' turn works but confuses them with
+  // actual user input, weakening instruction-following.
+  const systemText = data.messages
+    .filter((m: any) => m.role === 'system')
+    .map((m: any) => m.content)
+    .join('\n\n');
+  const contents = data.messages
+    .filter((m: any) => m.role !== 'system')
+    .map((m: any) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
 
   const response = await fetch(url, {
     method: 'POST',
@@ -220,6 +215,7 @@ async function callGoogle(apiKey: string, data: any) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      ...(systemText ? { systemInstruction: { parts: [{ text: systemText }] } } : {}),
       contents,
       generationConfig: {
         temperature: data.temperature,
@@ -254,6 +250,12 @@ async function callGoogle(apiKey: string, data: any) {
 async function callCustom(apiKey: string, data: any) {
   const response = await fetch(`${data.baseUrl}/chat/completions`, {
     method: 'POST',
+    // The SSRF check above validates data.baseUrl's resolved address, not
+    // wherever a redirect might point — auto-following one would bypass
+    // that check entirely. Manual mode also loses "follows to another
+    // trusted URL" convenience for legitimate custom endpoints, but that's
+    // the right trade for a base URL the user supplies at runtime.
+    redirect: 'manual',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
@@ -266,9 +268,13 @@ async function callCustom(apiKey: string, data: any) {
     }),
   });
 
+  if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
+    throw new APIError('Custom provider attempted to redirect — refusing to follow', 502, 'CUSTOM_PROVIDER_REDIRECT');
+  }
+
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Custom provider error: ${error}`);
+    throw new APIError(`Custom provider error: ${error}`, 502, 'CUSTOM_PROVIDER_ERROR');
   }
 
   return await response.json();

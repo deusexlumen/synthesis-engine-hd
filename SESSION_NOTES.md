@@ -73,3 +73,16 @@
 - `PROJECT_OVERVIEW.md` ist die Quelle der Wahrheit.
 - `PROJECT_OVERVIEW.html` und `PROJECT_OVERVIEW.pdf` waren zeitlich später erstellte Exporte (2026-06-05 19:24) und wurden entfernt.
 - `.gitignore` um `*.pdf` und `*.html` ergänzt, um zukünftige generierte Exporte auszuschließen.
+
+## 2026-07-07 — Audit nach Tauri-Entfernung (uncommitted Pivot zu Web-only)
+
+### Kontext
+- Working Tree enthielt zum Audit-Zeitpunkt einen unfertigen, uncommitted Pivot: `app/src-tauri` komplett entfernt, HD-Berechnung neu in `backend/src/services/humanDesignCalculator.ts`/`hdConstants.ts` implementiert, plus neue `ssrfGuard.ts`/`cleanup.ts`.
+- Neuer Audit-Report: `AUDIT_REPORT_2026-07-07.md`. Plan aktualisiert: `PRODUCTION_READY_PLAN.md` (Revision 2026-07-07, ersetzt die Fassung vom 2026-06-05).
+
+### Wichtigste Erkenntnis
+- Der Pivot ist technisch größtenteils sauber (SSRF-Guard, EARTH/Design-Offset korrekt, PrismaClient-Singleton, JWT-Härtung — alles verifiziert), aber **nicht zu Ende verdrahtet**: `JournalSection`, `GeneKeysSection`, `TransitSection` und das vollständige `SettingsSection.tsx` wurden im Diff überarbeitet, werden aber von `App.tsx`/`ResultsDashboard.tsx` nirgends importiert — für Nutzer schlicht unsichtbar.
+- Stiller Rechenfehler gefunden: `humanDesignCalculator.ts` sucht nach `MEAN_NODE`, obwohl `planetsToGates()` den Wert bereits zu `NORTH_NODE` kanonisiert — die PHS-Variable "Style" ist dadurch für jeden Chart falsch (immer `'Lunar'`-Fallback).
+- `backend/src/routes/coaching.ts` liefert für das PREMIUM/PRO-Feature "Daily Coaching" hartkodierte Fake-Daten (`sunGate: 1, moonGate: 2`, ein fixer Satz für alle Nutzer/Tage) — bezahltes Feature ist Attrappe.
+- Zwei sicherheitskritische Test-Suiten (`aiConfigStore.test.ts`, `authStore.test.ts`) sind weiterhin `.skip`'d, genau die Regression hätte eine falsche Live-Aussage in `AISettings.tsx` ("API-Key wird verschlüsselt gespeichert" — stimmt nicht, Key wird gar nicht persistiert) verhindert.
+- Frontend-CI ist aktuell rot (69 Lint-Fehler in `app/`).

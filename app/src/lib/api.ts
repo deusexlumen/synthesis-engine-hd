@@ -12,6 +12,8 @@ import type {
   GeocodeResult,
   TimezoneResult,
   HealthCheckResponse,
+  DailyTransit,
+  DailyTransitResponse,
 } from '@/types/humanDesign';
 import { calculateMillmanProfile } from '@/lib/millmanCalculations';
 import type { MillmanProfile } from '@/types/humanDesign';
@@ -59,11 +61,14 @@ function transformBirthData(data: BirthData): APICalculationRequest {
   const hour = hourStr ? parseInt(hourStr, 10) : 12;
   const minute = minuteStr ? parseInt(minuteStr, 10) : 0;
 
-  // Parse timezone offset from string (e.g., "Europe/Berlin" → 1 or 2)
-  const now = new Date();
-  const tzOffset = data.timezone
-    ? parseFloat(data.timezone) || getTimezoneOffset(data.timezone, data.birthDate)
-    : 1; // Default to CET
+  // data.timezone is always an IANA zone string (e.g. "Europe/Berlin"),
+  // never a raw numeric offset — resolve it for the *birth date*, not
+  // today, so historical DST rules apply correctly. Falling back to a
+  // hardcoded CET offset here would silently produce a wrong chart for
+  // any non-European birth location, so fall back to the browser's own
+  // resolved zone instead — still a guess, but not one that assumes CET.
+  const ianaTimezone = data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const tzOffset = getTimezoneOffset(ianaTimezone, data.birthDate);
 
   return {
     year,
@@ -86,8 +91,11 @@ function getTimezoneOffset(timezone: string, dateStr: string): number {
     const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
     const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
     return (tzDate.getTime() - utcDate.getTime()) / (1000 * 60 * 60);
-  } catch {
-    return 1; // Fallback to CET
+  } catch (error) {
+    // A silent fallback here would compute a wrong chart without any
+    // indication why — surface the failure instead so the caller's error
+    // UI can show it, rather than guessing an offset.
+    throw new Error(`Could not resolve timezone offset for "${timezone}": ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -215,6 +223,42 @@ export const api = {
     })();
 
     // Cache and auto-expire
+    requestCache.set(cacheKey, requestPromise);
+    setTimeout(() => requestCache.delete(cacheKey), CACHE_DURATION);
+
+    return requestPromise;
+  },
+
+  /**
+   * Get daily planetary transit data for a given date (defaults to today).
+   * Public endpoint — no auth required.
+   */
+  async getDailyTransit(date: Date = new Date()): Promise<DailyTransit> {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const url = `${API_BASE}/api/transit/daily?year=${year}&month=${month}&day=${day}`;
+    const cacheKey = getCacheKey(url);
+
+    if (requestCache.has(cacheKey)) {
+      return requestCache.get(cacheKey) as Promise<DailyTransit>;
+    }
+
+    const requestPromise = (async () => {
+      const response = await fetchWithTimeout(url, { method: 'GET' }, 10000);
+
+      if (!response.ok) {
+        throw await parseError(response);
+      }
+
+      const result: DailyTransitResponse = await response.json();
+      if (!result.success || !result.data) {
+        throw new APIError('Transit calculation returned invalid data', 500, 'INVALID_RESPONSE');
+      }
+
+      return result.data;
+    })();
+
     requestCache.set(cacheKey, requestPromise);
     setTimeout(() => requestCache.delete(cacheKey), CACHE_DURATION);
 

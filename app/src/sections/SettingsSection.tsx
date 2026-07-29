@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
-import { invokeSafe, isTauri } from '@/lib/tauri';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Bell, Shield, Palette, Globe, Database,
-  ChevronRight, Moon, Sun, Monitor, Key, Trash2,
+  ChevronRight, Moon, Sun, Monitor, Trash2,
   Download, Upload, Lock, Eye, EyeOff, Check,
   AlertTriangle, RefreshCw, Save
 } from 'lucide-react';
-import { useAIConfigStore } from '@/stores/aiConfigStore';
+import { useAIConfigStore, providerModels } from '@/stores/aiConfigStore';
 import { useAppStore } from '@/stores/appStore';
 import type { UserProfile, AppSettings } from '@/types/humanDesign';
 import { Input } from '@/components/ui/input';
@@ -117,15 +116,7 @@ export function SettingsSection(): React.ReactElement {
     // Clear global stores
     appStore.setProfile(null);
     appStore.setSettings(null);
-    // Clear journal entries via Tauri
-    if (isTauri()) {
-      const entries = await invokeSafe<string[]>('list_journal_entries_command', undefined, []);
-      if (entries) {
-        for (const id of entries) {
-          await invokeSafe('delete_journal_entry_command', { entryId: id });
-        }
-      }
-    }
+    localStorage.removeItem('synthesis_journal_entries');
     window.location.reload();
   };
 
@@ -512,26 +503,12 @@ export function SettingsSection(): React.ReactElement {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {aiConfig.provider === 'openai' && (
-                          <>
-                            <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                            <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                            <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                          </>
-                        )}
-                        {aiConfig.provider === 'anthropic' && (
-                          <>
-                            <SelectItem value="claude-3-opus-20240229">Claude 3 Opus</SelectItem>
-                            <SelectItem value="claude-3-sonnet-20240229">Claude 3 Sonnet</SelectItem>
-                            <SelectItem value="claude-3-haiku-20240307">Claude 3 Haiku</SelectItem>
-                          </>
-                        )}
-                        {aiConfig.provider === 'google' && (
-                          <>
-                            <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
-                            <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
-                          </>
-                        )}
+                        {aiConfig.provider !== 'disabled' &&
+                          providerModels[aiConfig.provider]
+                            .filter((m) => m.value)
+                            .map((m) => (
+                              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                            ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -567,14 +544,17 @@ export function SettingsSection(): React.ReactElement {
                 >
                   <h3 className="text-xl font-medium mb-4">Datenschutz</h3>
                   
-                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-xl">
                     <div className="flex items-center gap-3 mb-2">
-                      <Lock className="w-5 h-5 text-green-400" />
-                      <p className="font-medium text-green-400">Ende-zu-Ende Verschlüsselung</p>
+                      <Lock className="w-5 h-5 text-slate-300" />
+                      <p className="font-medium text-slate-200">Lokale Speicherung</p>
                     </div>
                     <p className="text-sm text-slate-400">
-                      Alle deine Daten werden mit AES-256-GCM verschlüsselt und sicher auf deinem Gerät gespeichert.
-                      Wir haben keinen Zugriff auf deine persönlichen Informationen.
+                      Profil, Einstellungen und Journal-Einträge werden unverschlüsselt im lokalen
+                      Speicher deines Browsers auf diesem Gerät gehalten und nicht an unsere Server
+                      übertragen. Dein Human-Design-Chart wird zur Berechnung einmalig an unser Backend
+                      gesendet; KI-Coaching-Anfragen gehen direkt an den von dir gewählten KI-Anbieter
+                      mit deinem eigenen API-Key.
                     </p>
                   </div>
 
@@ -671,19 +651,6 @@ export function SettingsSection(): React.ReactElement {
                         className="hidden"
                       />
                     </label>
-                  </div>
-
-                  <div className="p-4 bg-white/5 rounded-xl">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Key className="w-5 h-5 text-violet-400" />
-                      <div>
-                        <p className="font-medium">Verschlüsselungsschlüssel</p>
-                        <p className="text-sm text-slate-400">Verwalte deinen lokalen Verschlüsselungsschlüssel</p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      Der Verschlüsselungsschlüssel wird automatisch verwaltet und sicher im System-Keychain gespeichert.
-                    </p>
                   </div>
                 </motion.div>
               )}

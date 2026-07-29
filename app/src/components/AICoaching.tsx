@@ -303,9 +303,12 @@ async function callAI(
         'x-api-key': apiKey,
         'Content-Type': 'application/json',
         'anthropic-version': '2023-06-01',
+        // Required for browser-origin requests — without it the Anthropic
+        // API rejects the CORS preflight and this call fails outright.
+        'anthropic-dangerous-direct-browser-access': 'true',
       };
       body = {
-        model: model || 'claude-3-haiku-20240307',
+        model: model || 'claude-haiku-4-5',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 500,
       };

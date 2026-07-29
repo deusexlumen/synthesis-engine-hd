@@ -6,7 +6,9 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { APIError } from '../middleware/errorHandler';
 import type { Request } from 'express';
 
 // ============================================================================
@@ -116,15 +118,6 @@ export const authService = {
    * Register a new user
    */
   async register(input: RegisterInput, req?: Request): Promise<{ user: any; tokens: AuthTokens }> {
-    // Check if email exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: input.email.toLowerCase() },
-    });
-
-    if (existingUser) {
-      throw new Error('Email already registered');
-    }
-
     // Hash password
     const passwordHash = await hashPassword(input.password);
 
@@ -137,54 +130,66 @@ export const authService = {
     });
 
     if (!defaultRole) {
-      throw new Error('Default role not found');
+      throw new APIError('Default role not found', 500, 'ROLE_CONFIG_MISSING');
     }
 
-    // Create user with transaction
-    const user = await prisma.$transaction(async (tx: any) => {
-      // Create user
-      const newUser = await tx.user.create({
-        data: {
-          email: input.email.toLowerCase(),
-          passwordHash,
-          emailVerifyToken,
-          roles: {
-            create: {
-              roleId: defaultRole.id,
+    // Create user with transaction. No pre-check for an existing email —
+    // that read-then-write has a race window where two concurrent
+    // registrations both pass the check and one throws an unhandled
+    // Prisma P2002 error at the create() below. Let the unique constraint
+    // do the check atomically and translate its failure below instead.
+    let user;
+    try {
+      user = await prisma.$transaction(async (tx: any) => {
+        // Create user
+        const newUser = await tx.user.create({
+          data: {
+            email: input.email.toLowerCase(),
+            passwordHash,
+            emailVerifyToken,
+            roles: {
+              create: {
+                roleId: defaultRole.id,
+              },
+            },
+            subscription: {
+              create: {
+                tier: 'FREE',
+                status: 'INACTIVE',
+              },
             },
           },
-          subscription: {
-            create: {
-              tier: 'FREE',
-              status: 'INACTIVE',
+          include: {
+            roles: {
+              include: {
+                role: true,
+              },
             },
+            subscription: true,
           },
-        },
-        include: {
-          roles: {
-            include: {
-              role: true,
-            },
-          },
-          subscription: true,
-        },
-      });
+        });
 
-      // Create audit log
-      await tx.auditLog.create({
-        data: {
-          userId: newUser.id,
-          action: 'USER_REGISTERED',
-          resource: 'user',
-          resourceId: newUser.id,
-          details: { email: input.email },
-          ipAddress: req?.ip,
-          userAgent: req?.headers['user-agent'],
-        },
-      });
+        // Create audit log
+        await tx.auditLog.create({
+          data: {
+            userId: newUser.id,
+            action: 'USER_REGISTERED',
+            resource: 'user',
+            resourceId: newUser.id,
+            details: { email: input.email },
+            ipAddress: req?.ip,
+            userAgent: req?.headers['user-agent'],
+          },
+        });
 
-      return newUser;
-    });
+        return newUser;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new APIError('Email already registered', 409, 'EMAIL_TAKEN');
+      }
+      throw error;
+    }
 
     // Generate tokens
     const tokens = await this.createSession(user, req);
@@ -210,12 +215,12 @@ export const authService = {
     });
 
     if (!user || !user.passwordHash) {
-      throw new Error('Invalid credentials');
+      throw new APIError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
 
     // Check if user is active
     if (user.status !== 'ACTIVE') {
-      throw new Error('Account is not active');
+      throw new APIError('Account is not active', 401, 'ACCOUNT_INACTIVE');
     }
 
     // Verify password
@@ -232,7 +237,7 @@ export const authService = {
           userAgent: req?.headers['user-agent'],
         },
       });
-      throw new Error('Invalid credentials');
+      throw new APIError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
 
     // Update last login
@@ -322,11 +327,11 @@ export const authService = {
     });
 
     if (!storedToken || storedToken.revoked) {
-      throw new Error('Invalid refresh token');
+      throw new APIError('Invalid refresh token', 401, 'REFRESH_INVALID');
     }
 
     if (storedToken.expiresAt < new Date()) {
-      throw new Error('Refresh token expired');
+      throw new APIError('Refresh token expired', 401, 'REFRESH_EXPIRED');
     }
 
     // Revoke old token
@@ -399,24 +404,30 @@ export const authService = {
     });
 
     if (!user || !user.passwordHash) {
-      throw new Error('User not found');
+      throw new APIError('User not found', 404, 'USER_NOT_FOUND');
     }
 
     // Verify old password
     const isValid = await verifyPassword(oldPassword, user.passwordHash);
     if (!isValid) {
-      throw new Error('Current password is incorrect');
+      throw new APIError('Current password is incorrect', 401, 'INVALID_PASSWORD');
     }
 
     // Hash new password
     const newHash = await hashPassword(newPassword);
 
-    // Update password
+    // Update password. passwordResetToken is explicitly cleared here (not
+    // just left alone): resetPassword() below only checks the token value
+    // plus a recency window on passwordResetAt, not whether the token was
+    // ever consumed. Without this, a stale forgot-password token that was
+    // never used could be "reactivated" by this unrelated, legitimate
+    // password change bumping passwordResetAt to now.
     await prisma.user.update({
       where: { id: userId },
       data: {
         passwordHash: newHash,
         passwordResetAt: new Date(),
+        passwordResetToken: null,
       },
     });
 
@@ -476,7 +487,7 @@ export const authService = {
     });
 
     if (!user) {
-      throw new Error('Invalid or expired reset token');
+      throw new APIError('Invalid or expired reset token', 400, 'RESET_TOKEN_INVALID');
     }
 
     // Hash new password
@@ -604,7 +615,7 @@ export const rbacService = {
     });
 
     if (!role) {
-      throw new Error('Role not found');
+      throw new APIError('Role not found', 404, 'ROLE_NOT_FOUND');
     }
 
     await prisma.userRole.create({

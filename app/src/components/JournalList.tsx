@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { invokeSafe, isTauri } from '@/lib/tauri';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Plus, Calendar, Tag, Lock, Unlock,
@@ -63,54 +62,15 @@ export const JournalList: React.FC<JournalListProps> = ({
     try {
       setLoading(true);
 
-      if (!isTauri()) {
-        // Web fallback: load from localStorage
-        const stored = localStorage.getItem('synthesis_journal_entries');
-        if (stored) {
-          const parsed: JournalEntry[] = JSON.parse(stored);
-          setEntries(parsed);
-          const tagsSet = new Set<string>();
-          parsed.forEach(e => e.tags.forEach(tag => tagsSet.add(tag)));
-          setAllTags(Array.from(tagsSet).sort());
-        }
-        setLoading(false);
-        return;
+      const stored = localStorage.getItem('synthesis_journal_entries');
+      if (stored) {
+        const parsed: JournalEntry[] = JSON.parse(stored);
+        parsed.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setEntries(parsed);
+        const tagsSet = new Set<string>();
+        parsed.forEach(e => e.tags.forEach(tag => tagsSet.add(tag)));
+        setAllTags(Array.from(tagsSet).sort());
       }
-
-      // Get list of entry IDs
-      const entryIds = await invokeSafe<string[]>('list_journal_entries_command', undefined, []);
-      if (!entryIds) {
-        setLoading(false);
-        return;
-      }
-
-      // Load each entry
-      const loadedEntries: JournalEntry[] = [];
-      const tagsSet = new Set<string>();
-
-      for (const id of entryIds) {
-        try {
-          const encrypted = await invokeSafe<string>('load_journal_entry', {
-            entryId: id,
-          });
-
-          if (encrypted) {
-            const entry: JournalEntry = JSON.parse(encrypted); // Rust command returns decrypted plaintext JSON
-            loadedEntries.push(entry);
-            entry.tags.forEach(tag => tagsSet.add(tag));
-          }
-        } catch (error) {
-          console.error(`Failed to load entry ${id}:`, error);
-        }
-      }
-
-      // Sort by date (newest first)
-      loadedEntries.sort((a, b) =>
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-
-      setEntries(loadedEntries);
-      setAllTags(Array.from(tagsSet).sort());
     } catch (error) {
       console.error('Failed to load entries:', error);
     } finally {
@@ -186,7 +146,7 @@ export const JournalList: React.FC<JournalListProps> = ({
             <div>
               <h2 className="text-lg font-medium">Mein Journal</h2>
               <p className="text-xs text-slate-400">
-                {entries.length} {entries.length === 1 ? 'Eintrag' : 'Einträge'} • AES-256 verschlüsselt
+                {entries.length} {entries.length === 1 ? 'Eintrag' : 'Einträge'} • nur lokal gespeichert
               </p>
             </div>
           </div>

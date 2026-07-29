@@ -1,103 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { TransitDisplay } from '../components/TransitDisplay';
-import { invokeSafe, isTauri } from '@/lib/tauri';
+import { useHDChart } from '@/stores/appStore';
 import { Orbit, Calendar, Sparkles } from 'lucide-react';
 
 interface TransitSectionProps {
   className?: string;
 }
 
-interface HumanDesignChart {
-  energy_type: string;
-  authority: string;
-  profile: string;
-  gates: Array<{
-    number: number;
-    line: number;
-    color: number;
-    tone: number;
-    base: number;
-    planet: string;
-    is_design: boolean;
-  }>;
-  channels: Array<{
-    gate_1: number;
-    gate_2: number;
-  }>;
-}
-
 export function TransitSection({ className = '' }: TransitSectionProps): React.ReactElement {
-  const [natalGates, setNatalGates] = useState<number[]>([]);
-  const [hasProfile, setHasProfile] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadUserProfile();
-  }, []);
-
-  const loadUserProfile = async () => {
-    try {
-      setLoading(true);
-      
-      // Try to load from local storage first
-      const stored = localStorage.getItem('synthesis_profile');
-      if (stored) {
-        const profile = JSON.parse(stored);
-        if (profile.humanDesign?.gates) {
-          const gates = profile.humanDesign.gates.map((g: { number: number }) => g.number);
-          setNatalGates(gates);
-          setHasProfile(true);
-          setLoading(false);
-          return;
-        }
-      }
-      
-      // If no stored profile, check if we can calculate from birth data
-      const birthData = localStorage.getItem('synthesis_birth_data');
-      if (birthData && isTauri()) {
-        const data = JSON.parse(birthData);
-        const chart = await invokeSafe<HumanDesignChart>('calculate_human_design', {
-          year: data.year,
-          month: data.month,
-          day: data.day,
-          hour: data.hour,
-          minute: data.minute,
-          latitude: data.latitude,
-          longitude: data.longitude,
-          timezone: data.timezone,
-        });
-
-        if (chart) {
-          const gates = chart.gates.map(g => g.number);
-          setNatalGates(gates);
-          setHasProfile(true);
-
-          // Store the calculated profile
-          localStorage.setItem('synthesis_profile', JSON.stringify({
-            humanDesign: chart,
-            birthData: data,
-          }));
-        }
-      }
-    } catch (error) {
-      console.error('Error loading profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className={`flex items-center justify-center h-64 ${className}`}>
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-          className="w-12 h-12 border-4 border-violet-500/30 border-t-violet-500 rounded-full"
-        />
-      </div>
-    );
-  }
+  // Single source of truth: the chart already computed during onboarding
+  // (ProcessingAnimation → api.calculateHD) and held in the shared Zustand
+  // store. No separate localStorage copy or re-calculation here.
+  const hdChart = useHDChart();
+  const hasProfile = hdChart !== null;
+  const natalGates = useMemo(
+    () => (hdChart ? hdChart.gates.map((g) => g.number) : []),
+    [hdChart]
+  );
 
   return (
     <div className={`space-y-8 ${className}`}>

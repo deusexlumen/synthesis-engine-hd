@@ -13,7 +13,7 @@ const openai = new OpenAI({
 });
 
 const generateSynthesisSchema = z.object({
-  contextKey: z.string(),
+  contextKey: z.string().min(1).max(64),
   section: z.enum(['overview', 'career', 'relationships', 'spirituality', 'daily_transit']),
   hdData: z.object({
     energyType: z.string(),
@@ -84,8 +84,14 @@ router.post('/generate', authenticate, requireTier(['PREMIUM', 'PRO']), synthesi
   });
 
   const generatedText = completion.choices[0].message.content || '';
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-  // Cache the result
+  // Cache the result. expiresAt must be set on BOTH branches: a cache miss
+  // can happen either because no row exists yet (create) or because the
+  // previous row expired (update) — leaving it out of `update` meant a
+  // once-expired row never got a fresh expiry and stayed permanently
+  // "expired," forcing a full OpenAI regeneration on every request for that
+  // key from then on.
   await prisma.synthesisCache.upsert({
     where: {
       userId_contextKey_section: {
@@ -96,6 +102,7 @@ router.post('/generate', authenticate, requireTier(['PREMIUM', 'PRO']), synthesi
     },
     update: {
       generatedText,
+      expiresAt,
       updatedAt: new Date(),
     },
     create: {
@@ -103,7 +110,7 @@ router.post('/generate', authenticate, requireTier(['PREMIUM', 'PRO']), synthesi
       contextKey: data.contextKey,
       section: data.section,
       generatedText,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      expiresAt,
     },
   });
 

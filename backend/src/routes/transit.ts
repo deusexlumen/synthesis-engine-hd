@@ -155,7 +155,7 @@ router.get('/moon-phases', authenticate, async (req, res, next) => {
       const transit = await calculateDailyTransit(year, month, day);
       moonPhases.push({
         date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-        phase: transit.moon_phase,
+        phase: transit.moonPhase,
         moonGate: transit.planets.find((p: { name: string; gate: number }) => p.name === 'Mond')?.gate,
       });
     }

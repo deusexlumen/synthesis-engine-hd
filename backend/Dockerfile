@@ -11,7 +11,7 @@ FROM node:20 AS builder
 WORKDIR /app
 
 # Enable pnpm via corepack (Node.js 20+)
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 # Install build dependencies for native modules (node-gyp, sweph)
 RUN apt-get update && apt-get install -y \
@@ -43,7 +43,7 @@ FROM node:20-slim AS production
 WORKDIR /app
 
 # Enable pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 # Install minimal runtime dependencies for native modules
 RUN apt-get update && apt-get install -y \

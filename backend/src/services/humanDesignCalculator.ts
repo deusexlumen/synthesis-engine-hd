@@ -277,7 +277,7 @@ function calculateVariables(gates: Gate[]): Variables {
   const designSun = gates.find((g) => g.planet === 'SUN' && g.isDesign);
   const designMoon = gates.find((g) => g.planet === 'MOON' && g.isDesign);
   const personalitySun = gates.find((g) => g.planet === 'SUN' && !g.isDesign);
-  const northNode = gates.find((g) => g.planet === 'MEAN_NODE');
+  const northNode = gates.find((g) => g.planet === 'NORTH_NODE');
 
   return {
     digestion: designMoon ? determinationFromColor(designMoon.color, designMoon.line) : 'Appetite (Left)',

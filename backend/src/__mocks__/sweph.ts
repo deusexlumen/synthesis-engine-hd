@@ -52,6 +52,21 @@ const FAKE_POSITIONS: Record<number, number> = {
   [SE_CHIRON]: 15.0,
 };
 
+// Test helpers: override a planet's fixed longitude (e.g. to exercise
+// node-dependent chart variables) and restore the defaults afterwards.
+const DEFAULT_POSITIONS = { ...FAKE_POSITIONS };
+
+export function __setFakePosition(planet: number, longitude: number): void {
+  FAKE_POSITIONS[planet] = longitude;
+}
+
+export function __resetFakePositions(): void {
+  for (const key of Object.keys(FAKE_POSITIONS)) {
+    delete FAKE_POSITIONS[Number(key)];
+  }
+  Object.assign(FAKE_POSITIONS, DEFAULT_POSITIONS);
+}
+
 export function set_ephe_path(_path: string | null): void {
   // no-op in mock
 }

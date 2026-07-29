@@ -44,7 +44,7 @@ services:
       NODE_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/synthesis_engine
       DIRECT_URL: postgresql://postgres:postgres@postgres:5432/synthesis_engine
-      JWT_ACCESS_SECRET: dev-access-secret-min-32-chars-long
+      JWT_SECRET: dev-access-secret-min-32-chars-long
       JWT_REFRESH_SECRET: dev-refresh-secret-min-32-chars-long
       REDIS_URL: redis://redis:6379
     ports:

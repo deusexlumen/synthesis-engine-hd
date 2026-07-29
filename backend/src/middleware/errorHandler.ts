@@ -113,12 +113,15 @@ export function errorHandler(
     return;
   }
 
-  // Default error response
+  // Default error response. err.message may contain internals (file paths,
+  // SQL fragments, library details), so it only leaks in an explicit
+  // development environment — production AND any unset/test/other NODE_ENV
+  // get the generic message.
   res.status(500).json({
     success: false,
-    error: process.env.NODE_ENV === 'production' 
-      ? 'Internal server error' 
-      : err.message,
+    error: process.env.NODE_ENV === 'development'
+      ? err.message
+      : 'Internal server error',
   });
 }
 

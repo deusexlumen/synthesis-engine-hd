@@ -95,7 +95,7 @@ export const JournalSection: React.FC<JournalSectionProps> = ({ className = '' }
           <div className="flex items-center justify-center gap-6 text-xs text-slate-500">
             <div className="flex items-center gap-2">
               <Lock className="w-4 h-4 text-green-400" />
-              <span>AES-256-GCM Verschlüsselung</span>
+              <span>Nur lokal in deinem Browser gespeichert</span>
             </div>
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-blue-400" />

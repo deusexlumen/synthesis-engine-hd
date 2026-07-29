@@ -12,6 +12,5 @@ dist
 *.test.ts
 *.spec.ts
 jest.config.js
-tsconfig.json
 Dockerfile
 .dockerignore

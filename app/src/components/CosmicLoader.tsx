@@ -136,7 +136,7 @@ export function CosmicLoader({ size = 'md', text, subtext }: CosmicLoaderProps) 
 
 export function FullscreenLoader({
   text = 'Berechne dein Human Design...',
-  subtext = 'NASA JPL Ephemeris',
+  subtext = 'Präzise Ephemeriden-Berechnung',
 }: {
   text?: string;
   subtext?: string;

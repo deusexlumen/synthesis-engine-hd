@@ -156,12 +156,13 @@ export function OnboardingFlow() {
             <div>
               <h1 className="text-3xl font-bold text-white mb-3">Synthesis Engine</h1>
               <p className="text-white/60 max-w-sm mx-auto leading-relaxed">
-                Entdecke dein einzigartiges Human Design mit professioneller Präzision.
+                Entdecke dein einzigartiges Human Design auf Basis präziser
+                astronomischer Ephemeriden-Berechnungen.
                 Deine Daten bleiben zu 100% auf deinem Gerät.
               </p>
             </div>
             <div className="flex justify-center gap-8 text-sm text-white/40">
-              <span className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" />±0.0001° Genauigkeit</span>
+              <span className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" />Präzise Ephemeriden</span>
               <span className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" />100% Privat</span>
             </div>
             <Button

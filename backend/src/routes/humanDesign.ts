@@ -66,6 +66,9 @@ router.post('/calculate', hdCalculateLimiter, optionalAuth, asyncHandler(async (
       calculationTimeMs: Date.now() - startedAt,
       usingEphemeris: status.usingFiles,
       swissephVersion: status.version,
+      // Bodies the ephemeris backend could not supply (e.g. Chiron on the
+      // standard tier); empty when the chart is complete.
+      missingBodies: chart.missingBodies ?? [],
       birthData: { ...birthData, julianDay },
     },
   });

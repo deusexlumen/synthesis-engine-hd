@@ -180,11 +180,16 @@ export function calculateHDDetails(longitude: number): {
 
 /**
  * Calculate all planet positions
+ *
+ * Bodies the provider cannot supply (error code PLANET_UNAVAILABLE, e.g.
+ * Chiron from the StandardProvider) are skipped and their names appended to
+ * the optional `missingBodies` out-array so callers can surface them.
  */
 export function calculateAllPlanets(
   jd: number,
   includeOuter = true,
-  provider: EphemerisProvider = defaultProvider
+  provider: EphemerisProvider = defaultProvider,
+  missingBodies?: string[]
 ): Map<string, PlanetPosition> {
   const planets: [string, number][] = [
     ['SUN', PLANETS.SUN],
@@ -213,6 +218,10 @@ export function calculateAllPlanets(
       const pos = calculatePlanet(jd, id, provider);
       results.set(name, pos);
     } catch (error) {
+      if ((error as { code?: string }).code === 'PLANET_UNAVAILABLE') {
+        missingBodies?.push(name);
+        continue;
+      }
       console.error(`Failed to calculate ${name}:`, error);
       // Continue with other planets
     }
@@ -242,7 +251,7 @@ export function calculateHDMoments(
   birthJd: number,
   includeOuter = true,
   provider: EphemerisProvider = defaultProvider
-): { design: Map<string, PlanetPosition>; personality: Map<string, PlanetPosition> } {
+): { design: Map<string, PlanetPosition>; personality: Map<string, PlanetPosition>; missingBodies: string[] } {
   // 1. Get birth sun longitude
   const birthSun = provider.calcUt(birthJd, PLANETS.SUN, CALC_FLAGS);
   const birthSunLon = birthSun.data[0];
@@ -269,10 +278,12 @@ export function calculateHDMoments(
     }
   }
 
-  const personality = calculateAllPlanets(birthJd, includeOuter, provider);
-  const design = calculateAllPlanets(designJd, includeOuter, provider);
+  // Design and personality report the same unavailable bodies; deduplicate.
+  const missing: string[] = [];
+  const personality = calculateAllPlanets(birthJd, includeOuter, provider, missing);
+  const design = calculateAllPlanets(designJd, includeOuter, provider, missing);
 
-  return { design, personality };
+  return { design, personality, missingBodies: Array.from(new Set(missing)) };
 }
 
 // ============================================================================

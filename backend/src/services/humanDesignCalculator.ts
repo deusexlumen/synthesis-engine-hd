@@ -12,6 +12,7 @@ import {
   longitudeToGate,
   calculateHDDetails,
   type BirthData,
+  type EphemerisProvider,
   type PlanetPosition,
 } from './ephemeris';
 import { CHANNELS } from './hdConstants';
@@ -58,6 +59,12 @@ export interface HumanDesignChart {
   gates: Gate[];
   channels: Channel[];
   variables: Variables;
+  /**
+   * Bodies the ephemeris provider could not supply (PLANET_UNAVAILABLE),
+   * e.g. ['CHIRON'] from the standard backend. Absent/empty when the chart
+   * is complete.
+   */
+  missingBodies?: string[];
 }
 
 // ============================================================================
@@ -293,9 +300,9 @@ function calculateVariables(gates: Gate[]): Variables {
 // MAIN ENTRY POINT
 // ============================================================================
 
-export function calculateHumanDesignChart(birthData: BirthData): HumanDesignChart {
-  const jd = calculateJulianDay(birthData);
-  const { design, personality } = calculateHDMoments(jd, true);
+export function calculateHumanDesignChart(birthData: BirthData, provider?: EphemerisProvider): HumanDesignChart {
+  const jd = calculateJulianDay(birthData, provider);
+  const { design, personality, missingBodies } = calculateHDMoments(jd, true, provider);
 
   const personalityGates = planetsToGates(personality, false);
   const designGates = planetsToGates(design, true);
@@ -329,5 +336,6 @@ export function calculateHumanDesignChart(birthData: BirthData): HumanDesignChar
     gates: allGates,
     channels: channels.map(([gate1, gate2]) => ({ gate1, gate2 })),
     variables,
+    missingBodies,
   };
 }

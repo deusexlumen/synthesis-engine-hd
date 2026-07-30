@@ -139,6 +139,8 @@ export interface HDChartResponse {
     calculationTimeMs: number;
     usingEphemeris: boolean;
     swissephVersion: string;
+    /** Bodies the ephemeris backend could not supply (e.g. ['CHIRON'] on the standard tier). */
+    missingBodies?: string[];
     birthData: {
       year: number;
       month: number;

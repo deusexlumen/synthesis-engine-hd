@@ -12,7 +12,7 @@
  * (see services/ephemeris/types.ts). The calculation functions take an
  * optional `provider` argument and default to the shared SwephProvider
  * instance, which holds the state that used to be module-global here.
- * Tier selection arrives in Phase C.
+ * Tier-based selection lives in services/ephemeris/resolver.ts (Phase C).
  */
 
 import { CHANNELS } from './hdConstants';
@@ -313,26 +313,46 @@ export function getVersion(): string {
 }
 
 /**
- * Get initialization status
+ * Get initialization status for a provider (defaults to the shared
+ * SwephProvider). Works for any EphemerisProvider: the standard backend
+ * needs no initialization and never uses files, so it reports a synthetic
+ * always-ready status.
  */
-export function getStatus(): {
+export function getStatus(provider: EphemerisProvider = defaultProvider): {
   initialized: boolean;
   usingFiles: boolean;
   error: string | null;
   version: string;
 } {
-  return defaultProvider.getStatus();
+  if (provider instanceof SwephProvider) {
+    return provider.getStatus();
+  }
+  return {
+    initialized: true,
+    usingFiles: false,
+    error: null,
+    version: provider.version(),
+  };
 }
 
 /**
- * Get detailed diagnostics
+ * Get detailed diagnostics for a provider (defaults to the shared
+ * SwephProvider). The standard backend has no ephemeris files, so ephePath
+ * is null and the file lists are empty.
  */
-export function getDiagnostics(): {
-  ephePath: string;
+export function getDiagnostics(provider: EphemerisProvider = defaultProvider): {
+  ephePath: string | null;
   files: { found: string[]; missing: string[] };
   status: ReturnType<typeof getStatus>;
 } {
-  return defaultProvider.getDiagnostics();
+  if (provider instanceof SwephProvider) {
+    return provider.getDiagnostics();
+  }
+  return {
+    ephePath: null,
+    files: { found: [], missing: [] },
+    status: getStatus(provider),
+  };
 }
 
 /**

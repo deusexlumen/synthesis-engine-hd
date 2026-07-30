@@ -19,7 +19,7 @@ export function ProcessingAnimation() {
   const [progress, setProgress] = useState(0);
   const [showReveal, setShowReveal] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { userData, setHDChart, setMillmanProfile, setStep } = useAppStore();
+  const { userData, setHDChart, setMillmanProfile, setChartMeta, setStep } = useAppStore();
   const accessToken = useAuthStore((state) => state.tokens?.accessToken);
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export function ProcessingAnimation() {
 
     const runCalculations = async () => {
       try {
-        const { hdChart, millmanProfile } = await api.calculateHD(
+        const { hdChart, millmanProfile, accuracy, meta } = await api.calculateHD(
           {
             name: userData.fullName,
             birthDate: userData.birthDate,
@@ -41,6 +41,7 @@ export function ProcessingAnimation() {
 
         setHDChart(hdChart);
         setMillmanProfile(millmanProfile);
+        setChartMeta({ accuracy, missingBodies: meta.missingBodies ?? [] });
         setProgress(100);
         setShowReveal(true);
         setTimeout(() => setStep('results'), 1800);
@@ -66,7 +67,7 @@ export function ProcessingAnimation() {
     runCalculations();
 
     return () => clearInterval(phaseInterval);
-  }, [userData, accessToken, setHDChart, setMillmanProfile, setStep]);
+  }, [userData, accessToken, setHDChart, setMillmanProfile, setChartMeta, setStep]);
 
   // Error state
   if (error) {

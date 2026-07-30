@@ -138,7 +138,10 @@ export interface HDChartResponse {
     calculatedAt: string;
     calculationTimeMs: number;
     usingEphemeris: boolean;
-    swissephVersion: string;
+    /** Ephemeris backend that served this request ('swiss-professional' | 'standard'). */
+    ephemerisProvider?: 'swiss-professional' | 'standard';
+    /** Only present when the Swiss Ephemeris backend served the request. */
+    swissephVersion?: string;
     /** Bodies the ephemeris backend could not supply (e.g. ['CHIRON'] on the standard tier). */
     missingBodies?: string[];
     birthData: {
@@ -273,6 +276,10 @@ export interface AppState {
   userData: UserData | null;
   hdChart: HumanDesignChart | null;
   millmanProfile: MillmanProfile | null;
+  /** Accuracy tier the last chart calculation used (from the API response). */
+  accuracy: HDChartResponse['accuracy'] | null;
+  /** Bodies the ephemeris backend could not supply (e.g. ['CHIRON']). */
+  missingBodies: string[];
   profile: UserProfile | null;
   settings: AppSettings | null;
   isLoading: boolean;

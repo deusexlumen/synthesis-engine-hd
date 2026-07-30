@@ -170,6 +170,7 @@ export const api = {
   async calculateHD(data: BirthData, accessToken?: string): Promise<{
     hdChart: HumanDesignChart;
     millmanProfile: MillmanProfile;
+    accuracy: HDChartResponse['accuracy'];
     meta: HDChartResponse['meta'];
   }> {
     const cacheKey = getCacheKey(`${API_BASE}/api/hd/calculate`, data);
@@ -179,6 +180,7 @@ export const api = {
       return requestCache.get(cacheKey) as Promise<{
         hdChart: HumanDesignChart;
         millmanProfile: MillmanProfile;
+        accuracy: HDChartResponse['accuracy'];
         meta: HDChartResponse['meta'];
       }>;
     }
@@ -219,6 +221,7 @@ export const api = {
       return {
         hdChart: result.data,
         millmanProfile,
+        accuracy: result.accuracy,
         meta: result.meta,
       };
     })();

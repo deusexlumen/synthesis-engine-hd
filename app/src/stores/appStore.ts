@@ -25,6 +25,8 @@ interface AppActions {
   setUserData: (data: UserData | null) => void;
   setHDChart: (chart: HumanDesignChart | null) => void;
   setMillmanProfile: (profile: MillmanProfile | null) => void;
+  /** Ephemeris metadata of the last chart calculation (accuracy tier + missing bodies). */
+  setChartMeta: (meta: { accuracy: AppState['accuracy']; missingBodies?: string[] }) => void;
   setProfile: (profile: UserProfile | null) => void;
   setSettings: (settings: AppSettings | null) => void;
 
@@ -51,6 +53,8 @@ const initialState: AppState = {
   userData: null,
   hdChart: null,
   millmanProfile: null,
+  accuracy: null,
+  missingBodies: [],
   profile: null,
   settings: null,
   isLoading: false,
@@ -82,6 +86,12 @@ export const useAppStore = create<AppStore>()(
         setMillmanProfile: (profile) =>
           set((state) => {
             state.millmanProfile = profile;
+          }),
+
+        setChartMeta: (meta) =>
+          set((state) => {
+            state.accuracy = meta.accuracy;
+            state.missingBodies = meta.missingBodies ?? [];
           }),
 
         setProfile: (profile) =>
@@ -125,6 +135,8 @@ export const useAppStore = create<AppStore>()(
           userData: state.userData,
           hdChart: state.hdChart,
           millmanProfile: state.millmanProfile,
+          accuracy: state.accuracy,
+          missingBodies: state.missingBodies,
           profile: state.profile,
           settings: state.settings,
         }),

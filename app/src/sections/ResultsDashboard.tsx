@@ -30,6 +30,7 @@ import { JournalSection } from '@/sections/JournalSection';
 import { GeneKeysSection } from '@/sections/GeneKeysSection';
 import { TransitSection } from '@/sections/TransitSection';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { AccuracyBadge } from '@/components/AccuracyBadge';
 import type { Center } from '@/types/humanDesign';
 
 const springConfig = { stiffness: 400, damping: 30 };
@@ -113,7 +114,7 @@ function TooltipLabel({ label, className }: { label: string; className?: string 
 }
 
 export function ResultsDashboard() {
-  const { userData, hdChart, millmanProfile, reset } = useAppStore();
+  const { userData, hdChart, millmanProfile, accuracy, missingBodies, reset } = useAppStore();
   const [activeTab, setActiveTab] = useState('overview');
 
   if (!hdChart || !millmanProfile) {
@@ -445,7 +446,10 @@ export function ResultsDashboard() {
                 {/* Compact Overview */}
                 <Card className="glass rounded-3xl">
                   <CardContent className="p-6">
-                    <h3 className="text-lg font-medium mb-6">Kompakte Übersicht</h3>
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                      <h3 className="text-lg font-medium">Kompakte Übersicht</h3>
+                      <AccuracyBadge accuracy={accuracy} missingBodies={missingBodies} />
+                    </div>
                     
                     <div className="grid sm:grid-cols-2 gap-6">
                       {/* Human Design Summary */}

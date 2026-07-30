@@ -48,9 +48,54 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
       RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
-      SE_EPHE_PATH: /app/ephemeris
     ports:
       - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  # Backend API — professional ephemeris variant (Swiss Ephemeris).
+  # Opt-in only, started explicitly via:
+  #   docker compose --profile pro up -d backend-pro
+  # Builds with WITH_SWEPH=true: native sweph module + .se1 data files in the
+  # image, EPHEMERIS_PRO_ENABLED=true (also baked into the image by the
+  # Dockerfile). SE_EPHE_PATH points at the bundled data files; it matches
+  # the app's default resolution (/app/ephemeris) and is set explicitly for
+  # documentation/override purposes. Listens on 3001 so it can run alongside
+  # the standard backend.
+  backend-pro:
+    profiles: ["pro"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        WITH_SWEPH: "true"
+    container_name: synthesis-backend-pro
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      EPHEMERIS_PRO_ENABLED: "true"
+      SE_EPHE_PATH: /app/ephemeris
+    ports:
+      - "3001:3000"
     depends_on:
       postgres:
         condition: service_healthy

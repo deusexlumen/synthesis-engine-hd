@@ -38,6 +38,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       target: builder
+      # Standard (sweph-free) build. For the professional ephemeris in dev:
+      #   args: { WITH_SWEPH: "true" } plus EPHEMERIS_PRO_ENABLED=true and
+      #   SE_EPHE_PATH=/app/ephemeris in the environment below.
     container_name: synthesis-backend-dev
     restart: unless-stopped
     environment:

@@ -66,6 +66,7 @@ jest.mock('../lib/prisma', () => ({ prisma: prismaFake }));
 
 import { hdRouter } from '../routes/humanDesign';
 import { calculateHumanDesignChart } from '../services/humanDesignCalculator';
+import { resolveProvider } from '../services/ephemeris/resolver';
 import { errorHandler } from '../middleware/errorHandler';
 
 function buildApp() {
@@ -90,10 +91,23 @@ const VALID_BIRTH_DATA = {
   timezone: 2,
 };
 
+let savedProFlag: string | undefined;
+
 beforeEach(() => {
   profiles = [];
   lastCreateArgs = undefined;
   jest.clearAllMocks();
+  // Deterministic tier resolution: the default must be flag-off.
+  savedProFlag = process.env.EPHEMERIS_PRO_ENABLED;
+  delete process.env.EPHEMERIS_PRO_ENABLED;
+});
+
+afterEach(() => {
+  if (savedProFlag === undefined) {
+    delete process.env.EPHEMERIS_PRO_ENABLED;
+  } else {
+    process.env.EPHEMERIS_PRO_ENABLED = savedProFlag;
+  }
 });
 
 describe('humanDesign routes', () => {
@@ -155,7 +169,7 @@ describe('humanDesign routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
 
-      const expected = calculateHumanDesignChart(VALID_BIRTH_DATA);
+      const expected = calculateHumanDesignChart(VALID_BIRTH_DATA, resolveProvider('FREE'));
       expect(lastCreateArgs.data.userId).toBe('user-1');
       expect(lastCreateArgs.data.energyType).toBe(expected.energyType);
       expect(lastCreateArgs.data.authority).toBe(expected.authority);
@@ -163,6 +177,27 @@ describe('humanDesign routes', () => {
       expect(lastCreateArgs.data.profileLine2).toBe(expected.profileLine2);
       expect(lastCreateArgs.data.gates.create).toHaveLength(expected.gates.length);
       expect(lastCreateArgs.data.centers.create).toHaveLength(expected.definedCenters.length);
+    });
+
+    test('persists the chart for the caller tier (pro flag on → professional provider)', async () => {
+      const app = buildApp();
+      // token-admin carries tier 'PRO'; with the flag on the resolver selects
+      // the Swiss Ephemeris backend (mock is loadable under NODE_ENV=test).
+      // beforeEach/afterEach handle flag restore.
+      process.env.EPHEMERIS_PRO_ENABLED = 'true';
+
+      const res = await request(app)
+        .post('/api/hd/save')
+        .set(asAdmin)
+        .send({ birthData: VALID_BIRTH_DATA });
+
+      expect(res.status).toBe(200);
+
+      const expected = calculateHumanDesignChart(VALID_BIRTH_DATA, resolveProvider('PRO'));
+      expect(resolveProvider('PRO').name).toBe('swiss-professional');
+      expect(lastCreateArgs.data.userId).toBe('admin-1');
+      expect(lastCreateArgs.data.energyType).toBe(expected.energyType);
+      expect(lastCreateArgs.data.gates.create).toHaveLength(expected.gates.length);
     });
 
     test('400 when birthData is missing or invalid', async () => {

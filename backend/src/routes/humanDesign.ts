@@ -100,7 +100,11 @@ router.post('/save', authenticate, asyncHandler(async (req: Request, res) => {
   const { birthData } = saveHDSchema.parse(req.body);
   const userId = req.user!.userId;
 
-  const chart = calculateHumanDesignChart(birthData);
+  // Same tier-based provider selection as /calculate: a persisted chart must
+  // match the accuracy tier the user would get from a fresh calculation
+  // (Phase D consistency fix — previously this always used the default
+  // SwephProvider regardless of tier or feature flag).
+  const chart = calculateHumanDesignChart(birthData, resolveProvider(req.user!.tier));
 
   // Wrapped in a transaction: if `create` fails validation or hits a
   // constraint, the prior profile (just deleted) is rolled back instead

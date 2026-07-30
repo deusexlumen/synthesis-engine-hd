@@ -107,3 +107,20 @@
 - **AuthProvider-Unmount-Bug**: bei `isLoading` unmountet der Provider den Router-Baum; `navigate()` direkt nach Login kann hängen (in Phase 4 gefunden, offen).
 - **Nachgelagerte LOW-Findings**: 10-MB-JSON-Body-Limit zu großzügig; `parseInt` ohne Bound-Checks; Temperature-Slider ruft unbeabsichtigt `setBaseUrl`; 737-KB-Frontend-Chunk ohne Code-Splitting.
 - **M9**: `ci-docker.yml` baut das Image nur — Runtime-Healthcheck (`/health` + `.se1`-Dateien im Container) fehlt in CI.
+
+## 2026-07-30 — Präzisions-Ephemeris als Premium-Feature (Phasen A–E)
+
+### Feature
+- **EphemerisProvider-Architektur** (`backend/src/services/ephemeris/`): `SwephProvider` (Swiss Ephemeris, AGPL — erst nach Lizenzkauf) vs. `StandardProvider` (astronomia/Meeus, MIT). Tier-Resolver (`resolver.ts` + `lib/config.ts`): FREE/BASIC/Gäste → `standard`, PREMIUM/PRO → `swiss-professional` bei `EPHEMERIS_PRO_ENABLED=true`; jeder Fehlerfall (Flag aus, natives Modul fehlt) fällt still auf standard zurück.
+- **Gemessene Standard-Genauigkeit** gegen Swiss-Ephemeris-Referenz (10 Stichtage 1950–2030): max. Fehler Sonne 0,0059°, Mond 0,0152°, Planeten ≤ 0,0094°. Chiron im Standard-Tier nicht verfügbar (`meta.missingBodies`). Quelle der Werte: `docs/EPHEMERIS_STANDARD_PROVIDER.md`.
+- **Deployment-Trennung**: `sweph` in optionalDependencies; Dockerfile mit `WITH_SWEPH` Build-Arg (Standard-Image sweph-frei, per CI verifiziert); compose-Profil `pro` (`backend-pro`, Port 3001, `EPHEMERIS_PRO_ENABLED=true`, `SE_EPHE_PATH=/app/ephemeris`).
+- **Frontend**: AccuracyBadge mit Tier-Upsell (`app/src/components/AccuracyBadge.tsx`); unbelegte ±0.0001°/NASA-JPL-Aussagen aus der Marketing-Copy entfernt.
+- **Tests**: 198 backend / 36 app, alle grün.
+- **Doku (Phase E)**: `docs/EPHEMERIS_LICENSE_RUNBOOK.md` neu (Lizenzkauf → .se1-Dateien → Deployment → Verifikation → Upsell → Stripe); README/AGENTS/MONETIZATION_PLAN aktualisiert; historische Docs verweisen auf die neuen.
+- **Commit-Bereich**: `d4aef30`..`76c19a1` (Phasen A–D) plus Doku-Commits der Phase E.
+
+### Offene Launch-Blocker
+- **Stripe**: Checkout/Webhooks fehlen (Schema vorbereitet) — separater Blocker, siehe `MONETIZATION_PLAN.md`.
+- **Astrodienst-Lizenzkauf** (~500 €): Pflicht VOR jedem öffentlichen Deployment mit sweph (AGPL), siehe Runbook.
+- **`EPHEMERIS_PRO_ENABLED=true`** im Pro-Deployment sicherstellen (im `WITH_SWEPH`-Image bereits eingebrannt; manuelle Deployments müssen es explizit setzen).
+- **`RESEND_API_KEY` / `EMAIL_FROM`** für E-Mail-Versand.

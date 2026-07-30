@@ -60,11 +60,14 @@ router.post('/calculate', hdCalculateLimiter, optionalAuth, asyncHandler(async (
 
   const tier = req.user?.tier ?? 'FREE';
   const provider = resolveProvider(tier);
-  const status = ephemeris.getStatus(provider);
-  const isProfessional = provider.name === 'swiss-professional' && status.usingFiles;
 
+  // Compute first: the SwephProvider initializes lazily on first calcUt,
+  // so its status (usingFiles) is only meaningful after this call.
   const chart = calculateHumanDesignChart(birthData, provider);
   const julianDay = ephemeris.calculateJulianDay(birthData, provider);
+
+  const status = ephemeris.getStatus(provider);
+  const isProfessional = provider.name === 'swiss-professional' && status.usingFiles;
 
   res.json({
     success: true,

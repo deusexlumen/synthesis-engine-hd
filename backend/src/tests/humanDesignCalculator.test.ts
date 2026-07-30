@@ -11,8 +11,10 @@ import {
   definedCentersFromChannels,
   isMotorConnectedToThroat,
   gateToCenter,
+  calculateHumanDesignChart,
   CHANNELS,
 } from '../services/humanDesignCalculator';
+import { StandardProvider } from '../services/ephemeris/standardProvider';
 
 describe('gateToCenter', () => {
   test('every gate 1-64 maps to a real center, never UNKNOWN', () => {
@@ -108,5 +110,29 @@ describe('determineEnergyType', () => {
     // Channel 17-62 (Acceptance) connects AJNA to THROAT — no motor involved.
     const centers = new Set(['AJNA', 'THROAT']);
     expect(determineEnergyType(centers, [[17, 62]])).toBe('PROJECTOR');
+  });
+});
+
+describe('calculateHumanDesignChart with the standard ephemeris provider', () => {
+  const BIRTH_DATA = {
+    year: 1990, month: 5, day: 27,
+    hour: 5, minute: 15,
+    latitude: 52.5, longitude: 13.4, timezone: 2,
+  };
+
+  test('degrades gracefully: chart without Chiron, missingBodies = [CHIRON]', () => {
+    const chart = calculateHumanDesignChart(BIRTH_DATA, new StandardProvider());
+    expect(chart.missingBodies).toEqual(['CHIRON']);
+    // Chiron is excluded from the 13-activation chart anyway, so the gate
+    // set must be complete: 13 personality + 13 design activations.
+    expect(chart.gates).toHaveLength(26);
+    expect(chart.gates.some((g) => g.planet === 'CHIRON')).toBe(false);
+    expect(chart.energyType).toBeTruthy();
+    expect(chart.profile).toMatch(/^[1-6]\/[1-6]$/);
+  });
+
+  test('default provider (sweph) reports no missing bodies', () => {
+    const chart = calculateHumanDesignChart(BIRTH_DATA);
+    expect(chart.missingBodies).toEqual([]);
   });
 });

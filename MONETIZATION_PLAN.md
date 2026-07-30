@@ -14,9 +14,19 @@ Web-App = SaaS-Modell mit Subscription-Tiers. (Die frühere Tauri-Desktop-Varian
 | Transit-Zeitraum-Vergleich | ❌ | ❌ | ❌ | ✅ |
 | PDF-Export | ❌ | ✅ | ✅ | ✅ |
 | API-Zugriff | ❌ | ❌ | ❌ | ✅ |
+| Präzisions-Ephemeris | Standard (astronomia) | Standard | **Swiss Ephemeris Professional** | **Swiss Ephemeris Professional** |
 | Preis (Ziel) | 0€ | ~4,99€/Monat | ~9,99€/Monat | ~29,99€/Monat |
 
 > Die Tier-Namen entsprechen dem Prisma-Enum `SubscriptionTier` (FREE, BASIC, PREMIUM, PRO). Die frühere Bezeichnung `SOUL_SYNC_PREMIUM` wurde auf `PREMIUM` vereinheitlicht. BASIC ist im Schema angelegt, das konkrete Feature-Set/der Preis ist noch offen.
+
+### Präzisions-Staffelung (PREMIUM/PRO-Verkaufsargument)
+
+Seit der Ephemeris-Provider-Architektur ist die Rechengenauigkeit ein Tier-Feature:
+
+- **FREE/BASIC**: Standard-Provider (astronomia/Meeus, MIT) — gemessener Max-Fehler gegen eine Swiss-Ephemeris-Referenz über 10 Stichtage 1950–2030: Sonne 0,0059°, Mond 0,0152°, alle Planeten ≤ 0,0094° (Details: `docs/EPHEMERIS_STANDARD_PROVIDER.md`). Chiron ist im Standard-Tier nicht verfügbar.
+- **PREMIUM/PRO**: „Swiss Ephemeris Professional" — Referenzgenauigkeit (±0,0001°) inkl. Chiron. Erfordert die kommerzielle Astrodienst-Lizenz und `EPHEMERIS_PRO_ENABLED=true` (Vorgehen: `docs/EPHEMERIS_LICENSE_RUNBOOK.md`).
+
+Ehrliche Marketing-Aussagen: Für FREE/BASIC nur die gemessenen Standard-Werte nennen (für HD-Gates mit 5,625° Breite mehr als ausreichend) — keine absoluten Superlative und keine NASA-JPL-Vergleiche fürs FREE-Tier. Das Frontend zeigt die verwendete Genauigkeitsstufe als Accuracy-Badge mit Upsell-Hinweis (`app/src/components/AccuracyBadge.tsx`).
 
 ## Technische Architektur für Web-Monetarisierung
 

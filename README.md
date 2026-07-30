@@ -64,6 +64,22 @@
 - **🌍 Smart Geocoding**: Open-Meteo Integration für Ortsuche und Zeitzonenerkennung
 - **🎨 Neo-Mystic Design**: Dark Mode, Glassmorphism, Framer Motion Animationen
 
+### 🪐 Präzisions-Staffelung der Ephemeris (STANDARD / PROFESSIONAL)
+
+Die astronomischen Berechnungen laufen über zwei austauschbare Provider, die pro Request nach Subscription-Tier gewählt werden:
+
+| | STANDARD | PROFESSIONAL |
+|---|---|---|
+| **Tier** | FREE, BASIC, Gäste | PREMIUM, PRO |
+| **Bibliothek** | `astronomia` (Meeus: VSOP87, ELP2000-82) — MIT | Swiss Ephemeris (`sweph`) |
+| **Genauigkeit** | gemessener Max-Fehler: Sonne 0,0059°, Mond 0,0152°, Planeten ≤ 0,0094°* | ±0,0001° (Swiss Ephemeris) |
+| **Chiron** | nicht verfügbar | ✅ |
+| **Lizenz** | MIT — frei nutzbar | AGPL bzw. kommerzielle Astrodienst-Lizenz |
+
+\* Gemessen gegen eine Swiss-Ephemeris-Referenz über 10 Stichtage 1950–2030 — Details in [`docs/EPHEMERIS_STANDARD_PROVIDER.md`](docs/EPHEMERIS_STANDARD_PROVIDER.md). Für Human-Design-Gates (5,625° breit) liegt die Standard-Genauigkeit weit unterhalb jeder kritischen Schwelle.
+
+Der PROFESSIONAL-Provider wird nur aktiv, wenn zusätzlich das Feature-Flag `EPHEMERIS_PRO_ENABLED=true` gesetzt ist und das native `sweph`-Modul verfügbar ist — sonst greift automatisch der Standard-Provider. Im Frontend zeigt ein **Accuracy-Badge**, mit welchem Backend ein Chart berechnet wurde. Lizenzkauf & Pro-Aktivierung: [`docs/EPHEMERIS_LICENSE_RUNBOOK.md`](docs/EPHEMERIS_LICENSE_RUNBOOK.md).
+
 ---
 
 ## 🖥️ Screenshots
@@ -208,7 +224,8 @@ Die App ist dann verfügbar unter:
 | Node.js | 20+ | Runtime |
 | Express | 4.18 | API Framework |
 | Prisma | 5.6 | ORM |
-| Swiss Ephemeris | 2.10 | Astronomische Berechnungen |
+| Swiss Ephemeris | 2.10 | Astronomische Berechnungen (PRO-Tier, AGPL — siehe Runbook) |
+| astronomia | 4.2 | Ephemeris Standard-Tier (Meeus/VSOP87, MIT) |
 | OpenAI SDK | 4.20 | KI-Integration |
 | Redis | 7.x | Cache & Sessions |
 | PostgreSQL | 15+ | Hauptdatenbank |
@@ -299,7 +316,7 @@ GET    /api/coaching/daily          # Täglicher Coaching-Impuls
 
 Die vollständige Liste steht in [`PRODUCTION_READY_PLAN.md`](PRODUCTION_READY_PLAN.md) (Abschnitt „Launch-Blocker"). Kurzfassung:
 
-- [ ] **Swiss Ephemeris Lizenz**: `sweph` steht unter AGPL — kommerzielle Astrodienst-Lizenz (~500 €) erwerben oder auf eine MIT-lizenzierte Ephemeriden-Alternative umsteigen
+- [ ] **Swiss Ephemeris Lizenz** (nur PRO-Tier): Der Standard-Tier läuft lizenzfrei (astronomia, MIT). Für den PROFESSIONAL-Tier steht `sweph` unter AGPL — kommerzielle Astrodienst-Lizenz (~500 €) VOR jedem öffentlichen Deployment mit `EPHEMERIS_PRO_ENABLED=true` erwerben, siehe [`docs/EPHEMERIS_LICENSE_RUNBOOK.md`](docs/EPHEMERIS_LICENSE_RUNBOOK.md)
 - [ ] **Stripe-Integration**: Schema vorbereitet (`Subscription` mit Stripe-Feldern), Checkout-/Webhook-Code fehlt
 - [ ] **Deployment**: Empfehlung Render (Backend) + Supabase (PostgreSQL), siehe `MONETIZATION_PLAN.md`
 - [ ] **Erster Deploy**: `prisma migrate deploy` ausführen (Migrationen sind handgeschrieben)

@@ -1,6 +1,6 @@
 # Professionelle Swiss Ephemeris Einrichtung
 
-> **⚠️ Historisches Dokument (Tauri-Ära).** Pfade wie `app/src-tauri/ephemeris` sind veraltet — Ephemeris-Dateien gehören jetzt nach `backend/ephemeris/` (Download via `scripts/download-ephemeris.sh|.ps1`). Dieses Dokument dient nur noch als Referenz.
+> **⚠️ Historisches Dokument (Tauri-Ära).** Pfade wie `app/src-tauri/ephemeris` sind veraltet — Ephemeris-Dateien gehören jetzt nach `backend/ephemeris/` (Download via `scripts/download-ephemeris.sh|.ps1`). Aktuell maßgeblich: `docs/EPHEMERIS_STANDARD_PROVIDER.md` (Standard-Tier, Genauigkeitswerte) und `docs/EPHEMERIS_LICENSE_RUNBOOK.md` (Lizenzkauf & Pro-Aktivierung). Dieses Dokument dient nur noch als Referenz.
 
 ## Übersicht
 

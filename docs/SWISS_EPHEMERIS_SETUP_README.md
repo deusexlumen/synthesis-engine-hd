@@ -1,5 +1,7 @@
 # Swiss Ephemeris Einrichtung - Professionelle Genauigkeit
 
+> **Hinweis (Ephemeris-Tiers):** Diese Anleitung betrifft den PROFESSIONAL-Tier (Swiss Ephemeris, PREMIUM/PRO, `EPHEMERIS_PRO_ENABLED=true`). Der Standard-Tier (FREE/BASIC/Gäste) nutzt astronomia/Meeus ohne `.se1`-Dateien — Genauigkeitswerte siehe `docs/EPHEMERIS_STANDARD_PROVIDER.md`, Lizenzkauf & Pro-Aktivierung siehe `docs/EPHEMERIS_LICENSE_RUNBOOK.md`.
+
 ## Warum ist das wichtig?
 
 | Methode | Genauigkeit | Auswirkung auf HD |

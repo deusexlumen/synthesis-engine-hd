@@ -10,7 +10,7 @@
 > **Architektur: Web-only.** React + Vite Frontend (`app/`) spricht per HTTP/REST mit einem Node.js/Express + Prisma Backend (`backend/`). Sämtliche Berechnungen (Human Design, Numerologie, Transits) laufen serverseitig im Backend. Die frühere Desktop-Variante (Tauri v2 / Rust-Core) wurde vollständig entfernt — es gibt kein `app/src-tauri` mehr.
 
 ### Kernfunktionen
-- **Human Design Berechnungen**: BodyGraph (9 Zentren), Energie-Typ, Autorität, Profil (1-6 Linien), Tor-Aktivierungen (1-64), Kanal-Analyse, Variablen — serverseitig via Swiss Ephemeris (`sweph`)
+- **Human Design Berechnungen**: BodyGraph (9 Zentren), Energie-Typ, Autorität, Profil (1-6 Linien), Tor-Aktivierungen (1-64), Kanal-Analyse, Variablen — serverseitig über die Ephemeris-Provider-Architektur (STANDARD: astronomia/Meeus; PROFESSIONAL: Swiss Ephemeris — siehe Abschnitt „Ephemeris-Provider & Präzisions-Staffelung")
 - **Dan Millman Numerologie**: Lebensweg (z.B. 35/8), Wurzelzahlen, Meisterzahlen (11, 22), Null-Verstärker, Seelenweg (Vokale), Berufsweg (Konsonanten), Herausforderungen, Höhepunkte, Persönliches Jahr
 - **Gene Keys**: 64 Gene Keys mit Schatten, Gabe und Siddhi
 - **Planetare Transits**: Tägliche Planetenpositionen und Vergleich mit Natal-Chart
@@ -85,6 +85,7 @@ synthesis-engine/
 │   ├── src/
 │   │   ├── index.ts             # Express Server Setup (Graceful Shutdown, /health)
 │   │   ├── lib/
+│   │   │   ├── config.ts        # EPHEMERIS_PRO_ENABLED, SE_EPHE_PATH (lazy gelesen)
 │   │   │   ├── prisma.ts        # Prisma Client Singleton
 │   │   │   ├── logger.ts        # Pino Logging
 │   │   │   ├── ssrfGuard.ts     # SSRF-Schutz für Custom-AI-Provider
@@ -105,7 +106,12 @@ synthesis-engine/
 │   │   │   └── traceId.ts       # Request Trace IDs
 │   │   ├── services/
 │   │   │   ├── auth.ts          # Auth-Service (Register/Login/Refresh/RBAC)
-│   │   │   ├── ephemeris.ts     # Swiss Ephemeris Service (sweph)
+│   │   │   ├── ephemeris.ts     # Ephemeris-Fassade (provider-agnostisch)
+│   │   │   ├── ephemeris/       # EphemerisProvider-Architektur
+│   │   │   │   ├── types.ts            # EphemerisProvider-Interface
+│   │   │   │   ├── swephProvider.ts    # Swiss Ephemeris (PROFESSIONAL, optionalDependency)
+│   │   │   │   ├── standardProvider.ts # astronomia/Meeus (STANDARD, MIT)
+│   │   │   │   └── resolver.ts         # Tier-Auflösung + Verfügbarkeitsreport
 │   │   │   ├── humanDesignCalculator.ts  # HD Chart-Berechnung
 │   │   │   ├── hdConstants.ts   # HD Konstanten (Tore, Zentren, Kanäle)
 │   │   │   ├── millmanCalculator.ts      # Numerologie
@@ -123,6 +129,8 @@ synthesis-engine/
 │
 ├── docs/                         # Projekt-Dokumentation
 │   ├── EPHEMERIS_IMPLEMENTATION_GUIDE.md      # historisch (Tauri-Ära)
+│   ├── EPHEMERIS_STANDARD_PROVIDER.md         # Standard-Tier: Bibliotheks-Entscheidung + gemessene Genauigkeit
+│   ├── EPHEMERIS_LICENSE_RUNBOOK.md           # Lizenzkauf + Pro-Aktivierung (Schritt für Schritt)
 │   ├── PROFESSIONAL_CALCULATIONS_SPEC.md      # historisch (Tauri-Ära)
 │   ├── SWISS_EPHEMERIS_PROFESSIONAL_SETUP.md  # historisch (Tauri-Ära)
 │   ├── SWISS_EPHEMERIS_SETUP_README.md
@@ -167,7 +175,8 @@ synthesis-engine/
 | express-rate-limit | 7.1.0 | Rate Limiting |
 | bcryptjs | 2.4.3 | Passwort-Hashing |
 | jsonwebtoken | 9.0.2 | JWT Tokens |
-| sweph | 2.10.3-b-1 | Swiss Ephemeris (Node.js, **AGPL** — siehe Launch-Blocker) |
+| sweph | 2.10.3-b-1 | Swiss Ephemeris (Node.js, **AGPL**, optionalDependency — nur Pro-Image; siehe Launch-Blocker) |
+| astronomia | 4.2.0 | Ephemeris Standard-Tier (Meeus/VSOP87, MIT) |
 | pino | 10.3.1 | Logging |
 | Jest | 30.4.2 | Test Framework |
 | Supertest | 7.2.2 | API Contract Tests |
@@ -311,7 +320,7 @@ docker build -t synthesis-backend .
 
 ## Testing
 
-Aktueller Stand: **app: 28 Tests (Vitest), backend: 134 Tests (Jest), 1 Playwright-Smoke-Test** — alle grün.
+Aktueller Stand: **app: 36 Tests (Vitest), backend: 198 Tests (Jest), 1 Playwright-Smoke-Test** — alle grün.
 
 ### Frontend (Vitest, `app/`)
 
@@ -319,6 +328,7 @@ Aktueller Stand: **app: 28 Tests (Vitest), backend: 134 Tests (Jest), 1 Playwrig
 - `app/src/lib/journalApi.test.ts` - Journal API Client
 - `app/src/stores/aiConfigStore.test.ts` - Sicherheit: API-Key wird nicht persistiert
 - `app/src/stores/authStore.test.ts` - Sicherheit: Tokens werden nicht persistiert
+- `app/src/components/AccuracyBadge.test.tsx` - Accuracy-Badge (Tier-Anzeige, Upsell, missingBodies)
 
 ```bash
 cd app
@@ -335,6 +345,8 @@ pnpm exec playwright test    # E2E Smoke (app/e2e/smoke.spec.ts)
 - `coaching.test.ts`, `coachingRoutes.test.ts` - Coaching auf echten Transit-Daten
 - `journal.test.ts` - Journal-Endpunkte
 - `synthesis.test.ts`, `email.test.ts`, `ephemeris.test.ts` - Synthese, E-Mail-Service, Ephemeris-Genauigkeit
+- `ephemerisTier.test.ts` - Tier-basierte Provider-Auswahl (Resolver-Matrix + /calculate-Contract pro Tier)
+- `standardProvider.accuracy.test.ts` - StandardProvider gegen Swiss-Ephemeris-Referenz-Fixture (10 Daten 1950–2030)
 
 ```bash
 cd backend
@@ -384,6 +396,7 @@ NODE_ENV=development
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
 SE_EPHE_PATH=./ephemeris
+EPHEMERIS_PRO_ENABLED=false
 ```
 
 ### Environment Variablen (Frontend)
@@ -456,7 +469,7 @@ pnpm build                         # dist/ auf Static Hosting
 
 Siehe ausführlich in `PRODUCTION_READY_PLAN.md` (Abschnitt „Launch-Blocker"). Kurz:
 
-1. **sweph ist AGPL** → kommerzielle Astrodienst-Lizenz (~500 €) oder Umstieg auf MIT-lizenzierte Ephemeriden-Alternative
+1. **sweph ist AGPL** → betrifft nur den PROFESSIONAL-Tier (der Standard-Tier läuft MIT-lizenziert über astronomia). Vor jedem öffentlichen Pro-Deployment: kommerzielle Astrodienst-Lizenz (~500 €) erwerben — Vorgehen in `docs/EPHEMERIS_LICENSE_RUNBOOK.md`
 2. **Stripe-Integration fehlt** (Schema vorbereitet, Checkout/Webhooks nicht implementiert)
 3. **Deployment noch nicht erfolgt** (Empfehlung: Render + Supabase)
 4. **`prisma migrate deploy`** beim ersten Deploy
@@ -531,11 +544,25 @@ pnpm exec prisma migrate deploy # Migrationen anwenden (keine Dev-DB nötig für
 - TypeScript Version prüfen (5.9.3 im Frontend, 5.2.2 im Backend)
 - Frontend: `tsc -b` zeigt Projekt-Referenz-Fehler, die `vite build` allein verschluckt
 
-## Professionelle Berechnungen & Swiss Ephemeris
+## Ephemeris-Provider & Präzisions-Staffelung
 
-Alle astronomischen Berechnungen laufen serverseitig über `sweph` (Swiss Ephemeris) in `backend/src/services/ephemeris.ts` bzw. `humanDesignCalculator.ts` — mit professioneller Genauigkeit (±0.0001°). Die Ephemeris-Dateien (.se1) liegen in `backend/ephemeris/` und werden mit `scripts/download-ephemeris.sh|.ps1` heruntergeladen.
+Alle astronomischen Berechnungen laufen serverseitig über die `EphemerisProvider`-Abstraktion in `backend/src/services/ephemeris/` (`types.ts`, `swephProvider.ts`, `standardProvider.ts`, `resolver.ts`); `services/ephemeris.ts` ist die provider-agnostische Fassade. Pro Request wählt der Resolver anhand des Subscription-Tiers:
 
-**Lizenz-Hinweis:** Swiss Ephemeris steht unter AGPL bzw. einer kommerziellen Astrodienst-Lizenz. Für einen kommerziellen Closed-Source-Launch muss die Lizenzfrage geklärt werden — siehe Launch-Blocker in `PRODUCTION_READY_PLAN.md`.
+| Tier | Provider | Genauigkeit |
+|---|---|---|
+| FREE, BASIC, Gast | `standard` (astronomia/Meeus, MIT) | gemessener Max-Fehler: Sonne 0,0059°, Mond 0,0152°, Planeten ≤ 0,0094° |
+| PREMIUM, PRO | `swiss-professional` (Swiss Ephemeris, ±0,0001°, inkl. Chiron) — nur wenn `EPHEMERIS_PRO_ENABLED=true` **und** das native `sweph`-Modul ladbar ist | Referenzgenauigkeit |
+
+Jeder Fehlerfall (Flag aus, Modul fehlt) fällt still auf den Standard-Provider zurück; der Resolver wirft nie. Chiron ist im Standard-Tier nicht verfügbar (`meta.missingBodies` in `/api/hd/calculate`). Die API-Antwort enthält `accuracy` (STANDARD/PROFESSIONAL) und `meta.ephemerisProvider`; das Frontend zeigt sie als AccuracyBadge.
+
+- **Gemessene Standard-Werte + Bibliotheks-Entscheidung**: `docs/EPHEMERIS_STANDARD_PROVIDER.md`
+- **Lizenzkauf & Pro-Aktivierung (Schritt für Schritt)**: `docs/EPHEMERIS_LICENSE_RUNBOOK.md`
+
+**Env-Flags** (`backend/src/lib/config.ts`, lazy gelesen): `EPHEMERIS_PRO_ENABLED` ('true' aktiviert den Pro-Pfad), `SE_EPHE_PATH` (Pfad zu den `.se1`-Dateien, Default `backend/ephemeris/`, Download via `scripts/download-ephemeris.sh|.ps1`).
+
+**Docker-Varianten**: Das Standard-Image ist sweph-frei — `sweph` steht in optionalDependencies und wird per `pnpm install --no-optional` weggelassen (`docker build -t synthesis-backend .`; CI verifiziert die sweph-Freiheit). Pro-Image: `docker build --build-arg WITH_SWEPH=true -t synthesis-backend-pro .` oder `docker compose --profile pro up -d backend-pro` (Port 3001, `EPHEMERIS_PRO_ENABLED=true`, `SE_EPHE_PATH=/app/ephemeris`). Verifikation: `GET /api/hd/health` → `providers`-Feld.
+
+**Lizenz-Hinweis:** Swiss Ephemeris steht unter AGPL; für den kommerziellen PROFESSIONAL-Tier ist die Astrodienst-Lizenz (~500 €) VOR jedem öffentlichen Deployment mit `sweph` zu erwerben. Der Standard-Tier (MIT) ist davon nicht betroffen.
 
 Die älteren Dokumente in `docs/` (`EPHEMERIS_IMPLEMENTATION_GUIDE.md`, `PROFESSIONAL_CALCULATIONS_SPEC.md`, `SWISS_EPHEMERIS_PROFESSIONAL_SETUP.md`) beschreiben die Tauri/Rust-Umsetzung und sind nur noch als historische Referenz relevant; `docs/TEST_REFERENCE_DATA.md` bleibt für Validierungs-Tests nutzbar.
 

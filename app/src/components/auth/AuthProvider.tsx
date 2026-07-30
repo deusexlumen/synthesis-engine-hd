@@ -17,7 +17,7 @@ export function AuthProvider({
   children, 
   fallback = <AuthLoadingScreen /> 
 }: AuthProviderProps) {
-  const { checkAuth, isLoading } = useAuthStore();
+  const { checkAuth } = useAuthStore();
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
@@ -34,7 +34,10 @@ export function AuthProvider({
     init();
   }, [checkAuth]);
 
-  if (!isInitialized || isLoading) {
+  // Nur die initiale Auth-Prüfung blockiert den Render. Ein späteres
+  // isLoading (z. B. während des Logins) darf den Router nicht unmounten,
+  // sonst läuft navigate() nach dem Login gegen eine veraltete History.
+  if (!isInitialized) {
     return fallback;
   }
 

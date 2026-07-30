@@ -8,7 +8,7 @@
  * German fallback built from the actual gates/themes is used.
  */
 
-import { calculateDailyTransit, DailyTransit, TransitPlanet } from './ephemeris';
+import { calculateDailyTransit, DailyTransit, EphemerisProvider, TransitPlanet } from './ephemeris';
 import { callAIProvider, extractAIText, AIProxyRequest } from './aiProvider';
 import { prisma } from '../lib/prisma';
 
@@ -136,9 +136,11 @@ export async function synthesizeImpulseWithLLM(
 
 /**
  * Get today's coaching entry for the user, generating it from real transit
- * data on first access of the day.
+ * data on first access of the day. `provider` selects the ephemeris backend
+ * (resolved from the user's tier by the route); omitting it keeps the
+ * default provider.
  */
-export async function getOrCreateDailyCoaching(userId: string, creds?: LLMCredentials) {
+export async function getOrCreateDailyCoaching(userId: string, creds?: LLMCredentials, provider?: EphemerisProvider) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -153,7 +155,8 @@ export async function getOrCreateDailyCoaching(userId: string, creds?: LLMCreden
   const transit = calculateDailyTransit(
     today.getFullYear(),
     today.getMonth() + 1,
-    today.getDate()
+    today.getDate(),
+    provider
   );
 
   const impulseText = creds

@@ -6,6 +6,7 @@ import { authenticate, optionalAuth, requireRole } from '../middleware/auth';
 import { Request } from 'express';
 import { prisma } from '../lib/prisma';
 import * as ephemeris from '../services/ephemeris';
+import { resolveProvider, getAvailableProviders } from '../services/ephemeris/resolver';
 import { calculateHumanDesignChart } from '../services/humanDesignCalculator';
 import { hdCalculateLimiter } from '../middleware/rateLimit';
 
@@ -40,8 +41,12 @@ const saveHDSchema = z.object({
 /**
  * POST /api/hd/calculate
  *
- * Calculates a Human Design chart with PROFESSIONAL accuracy.
- * Uses NASA JPL Swiss Ephemeris data (±0.0001°).
+ * Calculates a Human Design chart. The ephemeris backend is chosen per
+ * request from the caller's subscription tier (Phase C): PREMIUM/PRO get
+ * Swiss Ephemeris professional accuracy (±0.0001°) when the
+ * EPHEMERIS_PRO_ENABLED flag is on; FREE/BASIC and guests get the standard
+ * astronomia/Meeus backend (≤ ~0.02°). The `accuracy` label and
+ * `meta.ephemerisProvider` reflect the backend actually used.
  *
  * No authentication required — the guest flow (see authStore.loginAsGuest)
  * lets people try the app before creating an account, and this endpoint
@@ -53,19 +58,26 @@ router.post('/calculate', hdCalculateLimiter, optionalAuth, asyncHandler(async (
   const startedAt = Date.now();
   const birthData = calculateSchema.parse(req.body);
 
-  const chart = calculateHumanDesignChart(birthData);
-  const julianDay = ephemeris.calculateJulianDay(birthData);
-  const status = ephemeris.getStatus();
+  const tier = req.user?.tier ?? 'FREE';
+  const provider = resolveProvider(tier);
+  const status = ephemeris.getStatus(provider);
+  const isProfessional = provider.name === 'swiss-professional' && status.usingFiles;
+
+  const chart = calculateHumanDesignChart(birthData, provider);
+  const julianDay = ephemeris.calculateJulianDay(birthData, provider);
 
   res.json({
     success: true,
-    accuracy: status.usingFiles ? 'PROFESSIONAL' : 'STANDARD',
+    accuracy: isProfessional ? 'PROFESSIONAL' : 'STANDARD',
     data: chart,
     meta: {
       calculatedAt: new Date().toISOString(),
       calculationTimeMs: Date.now() - startedAt,
       usingEphemeris: status.usingFiles,
-      swissephVersion: status.version,
+      ephemerisProvider: provider.name,
+      // sweph-specific detail — only present when the professional backend
+      // actually served this request.
+      ...(provider.name === 'swiss-professional' ? { swissephVersion: status.version } : {}),
       // Bodies the ephemeris backend could not supply (e.g. Chiron on the
       // standard tier); empty when the chart is complete.
       missingBodies: chart.missingBodies ?? [],
@@ -159,14 +171,16 @@ router.get('/stats', asyncHandler(async (req, res) => {
   res.json(stats);
 }));
 
-// Health check for ephemeris
+// Health check for ephemeris — also reports availability of BOTH backends
+// (Phase C), independent of the default-provider status above.
 router.get('/health', asyncHandler(async (req, res) => {
   const status = ephemeris.getStatus();
   const diagnostics = ephemeris.getDiagnostics();
-  
+
   res.json({
     status: status.usingFiles ? 'ok' : 'warning',
     ephemeris: status,
+    providers: getAvailableProviders(),
     diagnostics: {
       path: diagnostics.ephePath,
       filesFound: diagnostics.files.found.length,

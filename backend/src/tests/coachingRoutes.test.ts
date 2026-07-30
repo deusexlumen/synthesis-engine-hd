@@ -123,7 +123,8 @@ describe('coaching routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.impulse).toMatch(/Sonne in Tor 15/);
       expect(res.body.isRead).toBe(false);
-      expect(mockGetOrCreate).toHaveBeenCalledWith('user-premium', undefined);
+      // Third arg: the tier-resolved ephemeris provider (Phase C).
+      expect(mockGetOrCreate).toHaveBeenCalledWith('user-premium', undefined, expect.objectContaining({ name: expect.any(String) }));
     });
 
     test('passes BYOK credentials from headers to the service', async () => {
@@ -142,7 +143,9 @@ describe('coaching routes', () => {
       expect(res.status).toBe(200);
       expect(mockGetOrCreate).toHaveBeenCalledWith(
         'user-premium',
-        expect.objectContaining({ provider: 'anthropic', apiKey: 'sk-user' })
+        expect.objectContaining({ provider: 'anthropic', apiKey: 'sk-user' }),
+        // Third arg: the tier-resolved ephemeris provider (Phase C).
+        expect.objectContaining({ name: expect.any(String) })
       );
     });
   });

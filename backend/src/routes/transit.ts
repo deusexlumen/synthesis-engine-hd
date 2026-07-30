@@ -1,11 +1,19 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate } from '../middleware/auth';
+import { authenticate, optionalAuth } from '../middleware/auth';
 import { transitRangeLimiter } from '../middleware/rateLimit';
 import { calculateDailyTransit, compareTransitToNatal } from '../services/ephemeris';
+import { resolveProvider } from '../services/ephemeris/resolver';
 import { prisma } from '../lib/prisma';
 
 const router: Router = Router();
+
+// Ephemeris backend for this request, selected by subscription tier
+// (Phase C). Guests and unauthenticated callers resolve to the standard
+// provider; PREMIUM/PRO resolve to Swiss Ephemeris when enabled.
+function providerFor(req: { user?: { tier: string } }) {
+  return resolveProvider(req.user?.tier ?? 'FREE');
+}
 
 // Zod schemas for query validation
 const dailyTransitSchema = z.object({
@@ -31,11 +39,11 @@ const moonPhasesSchema = z.object({
 });
 
 // Get daily transit data
-router.get('/daily', async (req, res, next) => {
+router.get('/daily', optionalAuth, async (req, res, next) => {
   try {
     const { year, month, day } = dailyTransitSchema.parse(req.query);
 
-    const transitData = await calculateDailyTransit(year, month, day);
+    const transitData = await calculateDailyTransit(year, month, day, providerFor(req));
 
     res.json({
       success: true,
@@ -47,13 +55,14 @@ router.get('/daily', async (req, res, next) => {
 });
 
 // Get today's transit
-router.get('/today', async (req, res, next) => {
+router.get('/today', optionalAuth, async (req, res, next) => {
   try {
     const now = new Date();
     const transitData = await calculateDailyTransit(
       now.getFullYear(),
       now.getMonth() + 1,
-      now.getDate()
+      now.getDate(),
+      providerFor(req)
     );
 
     res.json({
@@ -93,7 +102,8 @@ router.get('/compare', authenticate, async (req, res, next) => {
       query.year || new Date().getFullYear(),
       query.month || new Date().getMonth() + 1,
       query.day || new Date().getDate(),
-      natalGates
+      natalGates,
+      providerFor(req)
     );
 
     res.json({
@@ -123,12 +133,14 @@ router.get('/range', authenticate, transitRangeLimiter, async (req, res, next) =
 
     const transits = [];
     const current = new Date(start);
+    const provider = providerFor(req);
 
     while (current <= end) {
       const transit = await calculateDailyTransit(
         current.getFullYear(),
         current.getMonth() + 1,
-        current.getDate()
+        current.getDate(),
+        provider
       );
       transits.push(transit);
       current.setDate(current.getDate() + 1);
@@ -149,10 +161,11 @@ router.get('/moon-phases', authenticate, async (req, res, next) => {
     const { year, month } = moonPhasesSchema.parse(req.query);
 
     const daysInMonth = new Date(year, month, 0).getDate();
+    const provider = providerFor(req);
 
     const moonPhases = [];
     for (let day = 1; day <= daysInMonth; day++) {
-      const transit = await calculateDailyTransit(year, month, day);
+      const transit = await calculateDailyTransit(year, month, day, provider);
       moonPhases.push({
         date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
         phase: transit.moonPhase,

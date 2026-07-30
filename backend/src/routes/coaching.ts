@@ -4,6 +4,7 @@ import { authenticate, AuthenticatedRequest, requireTier } from '../middleware/a
 import { coachingLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 import { getOrCreateDailyCoaching, LLMCredentials } from '../services/coaching';
+import { resolveProvider } from '../services/ephemeris/resolver';
 import { AIProxyRequest } from '../services/aiProvider';
 
 const router: Router = Router();
@@ -37,7 +38,9 @@ function getLLMCredentials(req: AuthenticatedRequest): LLMCredentials | undefine
 router.get('/daily', authenticate, requireTier(['PREMIUM', 'PRO']), coachingLimiter, asyncHandler(async (req: AuthenticatedRequest, res) => {
   const userId = req.user!.userId;
 
-  const coaching = await getOrCreateDailyCoaching(userId, getLLMCredentials(req));
+  // Ephemeris backend per tier (Phase C): PREMIUM/PRO get Swiss Ephemeris
+  // when EPHEMERIS_PRO_ENABLED is on, otherwise the standard provider.
+  const coaching = await getOrCreateDailyCoaching(userId, getLLMCredentials(req), resolveProvider(req.user!.tier));
 
   res.json({
     date: coaching.date,

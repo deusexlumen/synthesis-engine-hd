@@ -13,13 +13,14 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
+import { getSeEphePath } from '../../lib/config';
 import type { CalcFlags, EphemerisProvider, PlanetId, PlanetPositionRaw } from './types';
 
 // ============================================================================
 // CONFIGURATION - CRITICAL FOR ACCURACY
 // ============================================================================
-
-const EPHE_PATH = process.env.SE_EPHE_PATH || path.join(__dirname, '../../../ephemeris');
+// The ephemeris path lives in lib/config (Phase C) and is read lazily so
+// tests can point SE_EPHE_PATH at a fixture directory per case.
 
 // Required files for professional accuracy
 const REQUIRED_FILES = ['sepl_18.se1', 'semo_18.se1'];
@@ -116,13 +117,14 @@ export class SwephProvider implements EphemerisProvider {
 
     try {
       const sweph = this.loadSweph();
+      const ephePath = getSeEphePath();
 
       // Check for ephemeris files
-      const { found, missing } = checkEphemerisFiles(EPHE_PATH);
+      const { found, missing } = checkEphemerisFiles(ephePath);
 
       if (missing.length === 0) {
         // Professional mode: Use .se1 files
-        sweph.set_ephe_path(EPHE_PATH);
+        sweph.set_ephe_path(ephePath);
         this.usingFiles = true;
         this.initialized = true;
 
@@ -130,7 +132,7 @@ export class SwephProvider implements EphemerisProvider {
         console.log('╔══════════════════════════════════════════════════════════╗');
         console.log('║  ✓ Swiss Ephemeris PROFESSIONAL MODE                     ║');
         console.log(`║  Version: ${version.padEnd(49)} ║`);
-        console.log(`║  Path: ${EPHE_PATH.padEnd(52)} ║`);
+        console.log(`║  Path: ${ephePath.padEnd(52)} ║`);
         console.log('║  Accuracy: ±0.0001° (NASA JPL DE431/DE441)               ║');
         console.log('╚══════════════════════════════════════════════════════════╝');
         console.log('Files loaded:');
@@ -240,9 +242,10 @@ export class SwephProvider implements EphemerisProvider {
     files: { found: string[]; missing: string[] };
     status: SwephStatus;
   } {
+    const ephePath = getSeEphePath();
     return {
-      ephePath: EPHE_PATH,
-      files: checkEphemerisFiles(EPHE_PATH),
+      ephePath,
+      files: checkEphemerisFiles(ephePath),
       status: this.getStatus(),
     };
   }

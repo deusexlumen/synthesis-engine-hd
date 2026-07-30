@@ -73,6 +73,10 @@ FROM node:20-slim AS ephe-false
 WORKDIR /app
 RUN mkdir -p ./ephemeris
 
+# Selector stage: FROM supports ARG expansion (COPY --from does not), so the
+# variant is picked here and the production stage copies from plain "ephe".
+FROM ephe-${WITH_SWEPH} AS ephe
+
 # ----------------------------------------------------------------------------
 # STAGE 2: Production
 # ----------------------------------------------------------------------------
@@ -104,7 +108,7 @@ RUN if [ "$WITH_SWEPH" = "true" ]; then \
     fi
 
 # Copy ephemeris data files (professional image only — see selector stages)
-COPY --from=ephe-${WITH_SWEPH} /app/ephemeris/ ./ephemeris/
+COPY --from=ephe /app/ephemeris/ ./ephemeris/
 
 # Copy built application and Prisma schema, generate client locally
 COPY --from=builder /app/dist/ ./dist/

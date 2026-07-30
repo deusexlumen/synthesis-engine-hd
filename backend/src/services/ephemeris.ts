@@ -1,190 +1,51 @@
 /**
  * Swiss Ephemeris Service - PROFESSIONAL VERSION
- * 
+ *
  * Provides NASA JPL-level accuracy (±0.0001°) for astronomical calculations.
  * This is CRITICAL for Human Design - incorrect positions mean wrong gates!
- * 
+ *
  * Each HD Gate = 5.625°
  * Moshier accuracy = ±0.1° (can be wrong gate!)
  * Swiss Ephemeris = ±0.0001° (always correct gate)
+ *
+ * Phase A refactor: all backend access goes through an EphemerisProvider
+ * (see services/ephemeris/types.ts). The calculation functions take an
+ * optional `provider` argument and default to the shared SwephProvider
+ * instance, which holds the state that used to be module-global here.
+ * Tier selection arrives in Phase C.
  */
 
-import * as path from 'path';
-import * as fs from 'fs';
 import { CHANNELS } from './hdConstants';
+import { SwephProvider } from './ephemeris/swephProvider';
+import type { EphemerisProvider } from './ephemeris/types';
 
-// Try to import sweph, fallback to mock if not available
-let sweph: any;
-try {
-  sweph = require('sweph');
-} catch (e) {
-  // In test environment, use the mock
-  if (process.env.NODE_ENV === 'test') {
-    sweph = require('../__mocks__/sweph');
-  } else {
-    sweph = null;
-  }
-}
+export type { EphemerisProvider } from './ephemeris/types';
+export type { PlanetId, CalcFlags, PlanetPositionRaw } from './ephemeris/types';
 
-// ============================================================================
-// CONFIGURATION - CRITICAL FOR ACCURACY
-// ============================================================================
-
-const EPHE_PATH = process.env.SE_EPHE_PATH || path.join(__dirname, '../../ephemeris');
-
-// Required files for professional accuracy
-const REQUIRED_FILES = ['sepl_18.se1', 'semo_18.se1'];
-const OPTIONAL_FILES = ['seas_18.se1', 'sefstars.txt'];
-
-// Track initialization state
-let isInitialized = false;
-let isUsingFiles = false;
-let initError: string | null = null;
-
-// ============================================================================
-// INITIALIZATION - MUST BE CALLED BEFORE ANY CALCULATIONS
-// ============================================================================
-
-/**
- * Check if ephemeris files exist in the given path
- */
-function checkEphemerisFiles(ephePath: string): { found: string[]; missing: string[] } {
-  const found: string[] = [];
-  const missing: string[] = [];
-  
-  for (const file of REQUIRED_FILES) {
-    const filePath = path.join(ephePath, file);
-    if (fs.existsSync(filePath)) {
-      const stats = fs.statSync(filePath);
-      found.push(`${file} (${(stats.size / 1024).toFixed(1)} KB)`);
-    } else {
-      missing.push(file);
-    }
-  }
-  
-  // Check optional files
-  for (const file of OPTIONAL_FILES) {
-    const filePath = path.join(ephePath, file);
-    if (fs.existsSync(filePath)) {
-      const stats = fs.statSync(filePath);
-      found.push(`${file} (${(stats.size / 1024).toFixed(1)} KB) [optional]`);
-    }
-  }
-  
-  return { found, missing };
-}
-
-/**
- * Initialize Swiss Ephemeris - CRITICAL STEP
- * Must be called before any calculations!
- */
-export function initializeEphemeris(): { success: boolean; usingFiles: boolean; error?: string; details?: string } {
-  if (isInitialized) {
-    return { success: true, usingFiles: isUsingFiles };
-  }
-  
-  try {
-    // Check for ephemeris files
-    const { found, missing } = checkEphemerisFiles(EPHE_PATH);
-    
-    if (missing.length === 0) {
-      // Professional mode: Use .se1 files
-      sweph.set_ephe_path(EPHE_PATH);
-      isUsingFiles = true;
-      isInitialized = true;
-      
-      const version = sweph.version();
-      console.log('╔══════════════════════════════════════════════════════════╗');
-      console.log('║  ✓ Swiss Ephemeris PROFESSIONAL MODE                     ║');
-      console.log(`║  Version: ${version.padEnd(49)} ║`);
-      console.log(`║  Path: ${EPHE_PATH.padEnd(52)} ║`);
-      console.log('║  Accuracy: ±0.0001° (NASA JPL DE431/DE441)               ║');
-      console.log('╚══════════════════════════════════════════════════════════╝');
-      console.log('Files loaded:');
-      found.forEach(f => console.log(`  • ${f}`));
-      
-      return { 
-        success: true, 
-        usingFiles: true,
-        details: `Professional mode with ${found.length} ephemeris files`
-      };
-    } else {
-      // Fallback mode: Moshier formulas (LESS ACCURATE!)
-      sweph.set_ephe_path(null);
-      isUsingFiles = false;
-      isInitialized = true;
-      
-      const warning = `⚠️  WARNING: Missing ephemeris files!\n` +
-        `Missing: ${missing.join(', ')}\n` +
-        `Download from: https://github.com/aloistr/swisseph/tree/master/ephe\n` +
-        `Falling back to Moshier formulas (±0.1° accuracy - NOT SUITABLE FOR HD!)`;
-      
-      console.error('╔══════════════════════════════════════════════════════════╗');
-      console.error('║  ⚠️  WARNING: INACCURATE MODE                            ║');
-      console.error('║  Using Moshier formulas (±0.1°)                          ║');
-      console.error('║  This can produce WRONG Human Design gates!              ║');
-      console.error('╚══════════════════════════════════════════════════════════╝');
-      console.error(warning);
-      
-      initError = warning;
-      return { 
-        success: true, // Still works, but inaccurate
-        usingFiles: false,
-        error: warning,
-        details: 'Fallback mode - Moshier formulas'
-      };
-    }
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error('Failed to initialize Swiss Ephemeris:', errorMsg);
-    initError = errorMsg;
-    return { success: false, usingFiles: false, error: errorMsg };
-  }
-}
-
-/**
- * Ensure ephemeris is initialized
- * Throws error if not using professional mode
- */
-function ensureInitialized(): void {
-  if (!isInitialized) {
-    const result = initializeEphemeris();
-    if (!result.success) {
-      throw new Error(`Swiss Ephemeris initialization failed: ${result.error}`);
-    }
-  }
-  
-  // CRITICAL: Warn if not using files
-  if (!isUsingFiles) {
-    console.error('╔══════════════════════════════════════════════════════════╗');
-    console.error('║  ⚠️  CRITICAL: PROFESSIONAL ACCURACY NOT AVAILABLE!      ║');
-    console.error('║  Calculations may be INACCURATE!                         ║');
-    console.error('╚══════════════════════════════════════════════════════════╝');
-    // Don't throw - allow fallback for development, but log warning
-  }
-}
+// Default backend until Phase C adds tier selection. State (initialization,
+// ephemeris-file usage) lives on this instance, not in module globals.
+const defaultProvider = new SwephProvider();
 
 // ============================================================================
 // PLANET CONSTANTS
 // ============================================================================
 
-// Swiss Ephemeris planet IDs. Constants live under sweph.constants, not on
-// the module directly (fallback to hardcoded values if sweph unavailable).
-const SE = sweph?.constants;
+// Swiss Ephemeris planet IDs (values mirror sweph.constants; hardcoded so
+// importing this module doesn't load the native module).
 export const PLANETS = {
-  SUN: SE?.SE_SUN ?? 0,
-  MOON: SE?.SE_MOON ?? 1,
-  MERCURY: SE?.SE_MERCURY ?? 2,
-  VENUS: SE?.SE_VENUS ?? 3,
-  MARS: SE?.SE_MARS ?? 4,
-  JUPITER: SE?.SE_JUPITER ?? 5,
-  SATURN: SE?.SE_SATURN ?? 6,
-  URANUS: SE?.SE_URANUS ?? 7,
-  NEPTUNE: SE?.SE_NEPTUNE ?? 8,
-  PLUTO: SE?.SE_PLUTO ?? 9,
-  MEAN_NODE: SE?.SE_MEAN_NODE ?? 10,
-  TRUE_NODE: SE?.SE_TRUE_NODE ?? 11,
-  CHIRON: SE?.SE_CHIRON ?? 15,
+  SUN: 0,
+  MOON: 1,
+  MERCURY: 2,
+  VENUS: 3,
+  MARS: 4,
+  JUPITER: 5,
+  SATURN: 6,
+  URANUS: 7,
+  NEPTUNE: 8,
+  PLUTO: 9,
+  MEAN_NODE: 10,
+  TRUE_NODE: 11,
+  CHIRON: 15,
 } as const;
 
 // Human Design Mandala - Gates in correct order
@@ -238,13 +99,11 @@ export interface HDGate {
  * Calculate Julian Day from birth data
  * Uses UT (Universal Time) - critical for accuracy
  */
-export function calculateJulianDay(birthData: BirthData): number {
+export function calculateJulianDay(birthData: BirthData, provider: EphemerisProvider = defaultProvider): number {
   const { year, month, day, hour, minute, timezone } = birthData;
   // Convert local time to UT
   const hourUT = hour - timezone;
-  // sweph.SE_GREG_CAL does not exist (constants live under sweph.constants);
-  // passing undefined here left the calendar system unspecified.
-  return sweph.julday(year, month, day, hourUT + minute / 60, sweph.constants?.SE_GREG_CAL ?? 1);
+  return provider.julday(year, month, day, hourUT + minute / 60);
 }
 
 /**
@@ -254,14 +113,12 @@ export function calculateJulianDay(birthData: BirthData): number {
 // detection and the Design-Sun Newton iteration below. Using the equatorial
 // frame here would return right ascension instead of ecliptic longitude,
 // which silently misassigns HD gates (the 64-gate mandala is ecliptic-based).
-const CALC_FLAGS = (sweph?.constants?.SEFLG_SWIEPH ?? 2) | (sweph?.constants?.SEFLG_SPEED ?? 256);
+// Value: sweph.constants.SEFLG_SWIEPH | sweph.constants.SEFLG_SPEED.
+const CALC_FLAGS = 2 | 256;
 
-export function calculatePlanet(jd: number, planet: number): PlanetPosition {
-  ensureInitialized();
+export function calculatePlanet(jd: number, planet: number, provider: EphemerisProvider = defaultProvider): PlanetPosition {
+  const result = provider.calcUt(jd, planet, CALC_FLAGS);
 
-  const flags = CALC_FLAGS;
-  const result = sweph.calc_ut(jd, planet, flags);
-  
   return {
     longitude: result.data[0],
     latitude: result.data[1],
@@ -279,11 +136,11 @@ export function calculatePlanet(jd: number, planet: number): PlanetPosition {
 export function longitudeToGate(longitude: number): number {
   const HD_OFFSET = 300.0;
   const GATE_DEGREES = 5.625;
-  
+
   const normalized = ((longitude % 360) + 360) % 360;
   const hdPosition = ((normalized - HD_OFFSET) % 360 + 360) % 360;
   const gateIndex = Math.floor(hdPosition / GATE_DEGREES);
-  
+
   return MANDALA_GATES[gateIndex % 64];
 }
 
@@ -302,31 +159,33 @@ export function calculateHDDetails(longitude: number): {
   const COLOR_DEGREES = 0.15625;
   const TONE_DEGREES = 0.02604167;
   const BASE_DEGREES = 0.00520833;
-  
+
   const normalized = ((longitude % 360) + 360) % 360;
   const hdPosition = ((normalized - HD_OFFSET) % 360 + 360) % 360;
   const withinGate = hdPosition % GATE_DEGREES;
-  
+
   const line = Math.min(6, Math.max(1, Math.floor(withinGate / LINE_DEGREES) + 1));
   const withinLine = withinGate - (line - 1) * LINE_DEGREES;
-  
+
   const color = Math.min(6, Math.max(1, Math.floor(withinLine / COLOR_DEGREES) + 1));
   const withinColor = withinLine - (color - 1) * COLOR_DEGREES;
-  
+
   const tone = Math.min(6, Math.max(1, Math.floor(withinColor / TONE_DEGREES) + 1));
   const withinTone = withinColor - (tone - 1) * TONE_DEGREES;
-  
+
   const base = Math.min(5, Math.max(1, Math.floor(withinTone / BASE_DEGREES) + 1));
-  
+
   return { line, color, tone, base };
 }
 
 /**
  * Calculate all planet positions
  */
-export function calculateAllPlanets(jd: number, includeOuter = true): Map<string, PlanetPosition> {
-  ensureInitialized();
-  
+export function calculateAllPlanets(
+  jd: number,
+  includeOuter = true,
+  provider: EphemerisProvider = defaultProvider
+): Map<string, PlanetPosition> {
   const planets: [string, number][] = [
     ['SUN', PLANETS.SUN],
     ['MOON', PLANETS.MOON],
@@ -337,7 +196,7 @@ export function calculateAllPlanets(jd: number, includeOuter = true): Map<string
     ['SATURN', PLANETS.SATURN],
     ['MEAN_NODE', PLANETS.MEAN_NODE],
   ];
-  
+
   if (includeOuter) {
     planets.push(
       ['URANUS', PLANETS.URANUS],
@@ -346,19 +205,19 @@ export function calculateAllPlanets(jd: number, includeOuter = true): Map<string
       ['CHIRON', PLANETS.CHIRON]
     );
   }
-  
+
   const results = new Map<string, PlanetPosition>();
-  
+
   for (const [name, id] of planets) {
     try {
-      const pos = calculatePlanet(jd, id);
+      const pos = calculatePlanet(jd, id, provider);
       results.set(name, pos);
     } catch (error) {
       console.error(`Failed to calculate ${name}:`, error);
       // Continue with other planets
     }
   }
-  
+
   // EARTH is 180° opposite the SUN
   const sunPos = results.get('SUN');
   if (sunPos) {
@@ -371,7 +230,7 @@ export function calculateAllPlanets(jd: number, includeOuter = true): Map<string
       distanceSpeed: sunPos.distanceSpeed,
     });
   }
-  
+
   return results;
 }
 
@@ -381,30 +240,27 @@ export function calculateAllPlanets(jd: number, includeOuter = true): Map<string
  */
 export function calculateHDMoments(
   birthJd: number,
-  includeOuter = true
+  includeOuter = true,
+  provider: EphemerisProvider = defaultProvider
 ): { design: Map<string, PlanetPosition>; personality: Map<string, PlanetPosition> } {
-  ensureInitialized();
-
-  const flags = CALC_FLAGS;
-
   // 1. Get birth sun longitude
-  const birthSun = sweph.calc_ut(birthJd, PLANETS.SUN, flags);
+  const birthSun = provider.calcUt(birthJd, PLANETS.SUN, CALC_FLAGS);
   const birthSunLon = birthSun.data[0];
-  
+
   // 2. Iteratively find JD where sun is exactly 88° before birth sun
   let designJd = birthJd - 89.0; // rough estimate
   const targetArc = 88.0;
   const tolerance = 0.001;
-  
+
   for (let i = 0; i < 20; i++) {
-    const designSun = sweph.calc_ut(designJd, PLANETS.SUN, flags);
+    const designSun = provider.calcUt(designJd, PLANETS.SUN, CALC_FLAGS);
     const diff = ((birthSunLon - designSun.data[0]) % 360 + 360) % 360;
     const error = diff - targetArc;
-    
+
     if (Math.abs(error) < tolerance) {
       break;
     }
-    
+
     const speed = designSun.data[3]; // longitude speed
     if (Math.abs(speed) < 0.01) {
       designJd -= error / 0.9856;
@@ -412,10 +268,10 @@ export function calculateHDMoments(
       designJd -= error / speed;
     }
   }
-  
-  const personality = calculateAllPlanets(birthJd, includeOuter);
-  const design = calculateAllPlanets(designJd, includeOuter);
-  
+
+  const personality = calculateAllPlanets(birthJd, includeOuter, provider);
+  const design = calculateAllPlanets(designJd, includeOuter, provider);
+
   return { design, personality };
 }
 
@@ -424,17 +280,25 @@ export function calculateHDMoments(
 // ============================================================================
 
 /**
- * Check if using professional ephemeris files
+ * Initialize the default ephemeris provider - CRITICAL STEP
+ * Must be called before any calculations!
  */
-export function isUsingEphemerisFiles(): boolean {
-  return isUsingFiles;
+export function initializeEphemeris(): { success: boolean; usingFiles: boolean; error?: string; details?: string } {
+  return defaultProvider.initialize();
 }
 
 /**
- * Get Swiss Ephemeris version
+ * Check if using professional ephemeris files
+ */
+export function isUsingEphemerisFiles(): boolean {
+  return defaultProvider.isUsingFiles();
+}
+
+/**
+ * Get ephemeris backend version
  */
 export function getVersion(): string {
-  return sweph.version();
+  return defaultProvider.version();
 }
 
 /**
@@ -446,12 +310,7 @@ export function getStatus(): {
   error: string | null;
   version: string;
 } {
-  return {
-    initialized: isInitialized,
-    usingFiles: isUsingFiles,
-    error: initError,
-    version: sweph.version(),
-  };
+  return defaultProvider.getStatus();
 }
 
 /**
@@ -462,20 +321,14 @@ export function getDiagnostics(): {
   files: { found: string[]; missing: string[] };
   status: ReturnType<typeof getStatus>;
 } {
-  return {
-    ephePath: EPHE_PATH,
-    files: checkEphemerisFiles(EPHE_PATH),
-    status: getStatus(),
-  };
+  return defaultProvider.getDiagnostics();
 }
 
 /**
  * Close ephemeris (cleanup)
  */
 export function closeEphemeris(): void {
-  sweph.close();
-  isInitialized = false;
-  isUsingFiles = false;
+  defaultProvider.close();
 }
 
 // ============================================================================
@@ -585,16 +438,19 @@ function getMoonPhase(sunLon: number, moonLon: number): string {
   return 'waning_crescent';
 }
 
-export function calculateDailyTransit(year: number, month: number, day: number): DailyTransit {
-  ensureInitialized();
-
+export function calculateDailyTransit(
+  year: number,
+  month: number,
+  day: number,
+  provider: EphemerisProvider = defaultProvider
+): DailyTransit {
   const jd = calculateJulianDay({
     year, month, day,
     hour: 12, minute: 0,
     latitude: 0, longitude: 0, timezone: 0,
-  });
+  }, provider);
 
-  const allPlanets = calculateAllPlanets(jd, true);
+  const allPlanets = calculateAllPlanets(jd, true, provider);
 
   const planetList: TransitPlanet[] = [];
   for (const { key, name, trackRetrograde } of TRANSIT_PLANETS) {
@@ -639,9 +495,10 @@ export function compareTransitToNatal(
   year: number,
   month: number,
   day: number,
-  natalGates: number[]
+  natalGates: number[],
+  provider: EphemerisProvider = defaultProvider
 ): TransitComparison {
-  const transit = calculateDailyTransit(year, month, day);
+  const transit = calculateDailyTransit(year, month, day, provider);
 
   const transitGates = new Set(transit.planets.map((p) => p.gate));
   const natalSet = new Set(natalGates);

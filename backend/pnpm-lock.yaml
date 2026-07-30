@@ -60,15 +60,16 @@ importers:
       pino-pretty:
         specifier: ^13.1.3
         version: 13.1.3
-      sweph:
-        specifier: ^2.10.3-b-1
-        version: 2.10.3-b-1
       uuid:
         specifier: ^11.1.1
         version: 11.1.1
       zod:
         specifier: ^3.22.4
         version: 3.25.76
+    optionalDependencies:
+      sweph:
+        specifier: ^2.10.3-b-1
+        version: 2.10.3-b-1
     devDependencies:
       '@types/bcryptjs':
         specifier: ^2.4.6
@@ -4190,7 +4191,8 @@ snapshots:
 
   neo-async@2.6.2: {}
 
-  node-addon-api@8.8.0: {}
+  node-addon-api@8.8.0:
+    optional: true
 
   node-domexception@1.0.0: {}
 
@@ -4588,6 +4590,7 @@ snapshots:
   sweph@2.10.3-b-1:
     dependencies:
       node-addon-api: 8.8.0
+    optional: true
 
   synckit@0.11.13:
     dependencies:

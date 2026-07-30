@@ -132,7 +132,7 @@ export interface MillmanProfile {
 
 export interface HDChartResponse {
   success: boolean;
-  accuracy: 'PROFESSIONAL' | 'FALLBACK';
+  accuracy: 'PROFESSIONAL' | 'STANDARD';
   data: HumanDesignChart;
   meta: {
     calculatedAt: string;

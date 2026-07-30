@@ -233,7 +233,7 @@ afterAll(() => {
   if (status.usingFiles) {
     console.log('✓ PROFESSIONAL MODE: NASA JPL accuracy (±0.0001°)');
   } else {
-    console.log('⚠️  FALLBACK MODE: Moshier accuracy (±0.1°)');
+    console.log('⚠️  STANDARD MODE: Moshier accuracy (±0.1°)');
     console.log('   Run download-ephemeris script for professional accuracy');
   }
   console.log('═══════════════════════════════════════════════════════════\n');

@@ -59,7 +59,7 @@ router.post('/calculate', hdCalculateLimiter, optionalAuth, asyncHandler(async (
 
   res.json({
     success: true,
-    accuracy: status.usingFiles ? 'PROFESSIONAL' : 'FALLBACK',
+    accuracy: status.usingFiles ? 'PROFESSIONAL' : 'STANDARD',
     data: chart,
     meta: {
       calculatedAt: new Date().toISOString(),

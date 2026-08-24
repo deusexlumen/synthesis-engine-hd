@@ -7,6 +7,7 @@ import {
   AlertTriangle, RefreshCw, Save
 } from 'lucide-react';
 import { useAIConfigStore, providerModels } from '@/stores/aiConfigStore';
+import { applyAISettingChange, type AIField } from './aiSettingsFields';
 import { useAppStore } from '@/stores/appStore';
 import type { UserProfile, AppSettings } from '@/types/humanDesign';
 import { Input } from '@/components/ui/input';
@@ -83,21 +84,8 @@ export function SettingsSection(): React.ReactElement {
     setHasChanges(true);
   };
 
-  const handleAIChange = (field: 'provider' | 'apiKey' | 'model' | 'temperature', value: unknown) => {
-    switch (field) {
-      case 'provider':
-        aiConfig.setProvider(value as 'openai' | 'anthropic' | 'google' | 'custom' | 'disabled');
-        break;
-      case 'apiKey':
-        aiConfig.setApiKey(value as string);
-        break;
-      case 'model':
-        aiConfig.setModel(value as string);
-        break;
-      case 'temperature':
-        aiConfig.setBaseUrl(value as string); // Temperature is not in store, using baseUrl as placeholder
-        break;
-    }
+  const handleAIChange = (field: AIField, value: unknown) => {
+    applyAISettingChange(aiConfig, field, value);
     setHasChanges(true);
   };
 

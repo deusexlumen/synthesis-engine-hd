@@ -5,10 +5,29 @@
 
 import rateLimit from 'express-rate-limit';
 
+/**
+ * Strict positive-integer parse with a fallback.
+ *
+ * parseInt() is too permissive for configuration: 'abc' yields NaN (which
+ * express-rate-limit treats as no limit at all) and '100abc' silently yields
+ * 100, hiding a broken value. Anything that is not a whole number greater
+ * than zero falls back to the documented default.
+ */
+export function parsePositiveIntEnv(value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === '') {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
 // General API rate limiting (existing behavior)
 export const generalLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000'),
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
+  windowMs: parsePositiveIntEnv(process.env.RATE_LIMIT_WINDOW_MS, 60000),
+  max: parsePositiveIntEnv(process.env.RATE_LIMIT_MAX_REQUESTS, 100),
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,

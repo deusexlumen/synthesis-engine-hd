@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, FileText, BookOpen, Check, Loader2 } from 'lucide-react';
-import { generateFullReport, quickExportChart, type JournalEntry } from '../services/pdfExport';
+import type { JournalEntry } from '../services/pdfExport';
 import { toast } from 'sonner';
 
 interface PDFExportButtonProps {
@@ -30,14 +30,18 @@ export function PDFExportButton({
     setShowMenu(false);
 
     try {
+      // jspdf + html2canvas are ~500kB of the bundle and only needed once a
+      // user actually exports, so the whole module is loaded on demand.
       switch (type) {
         case 'chart':
           if (elementId) {
+            const { quickExportChart } = await import('../services/pdfExport');
             await quickExportChart(elementId, filename);
           }
           break;
         case 'full':
           if (chartData) {
+            const { generateFullReport } = await import('../services/pdfExport');
             await generateFullReport(chartData, {
               filename: filename || 'synthesis-report.pdf',
             });

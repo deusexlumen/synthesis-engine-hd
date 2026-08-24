@@ -94,8 +94,8 @@ services:
       - key: EMAIL_FROM
         sync: false
 
-      # Server-side AI proxy (synthesis, coaching). Unset, those endpoints
-      # fail; the rest of the app works.
+      # Server-side AI proxy for synthesis. Unset, /api/synthesis/generate
+      # answers 503 AI_NOT_CONFIGURED and everything else works.
       - key: OPENAI_API_KEY
         sync: false
 

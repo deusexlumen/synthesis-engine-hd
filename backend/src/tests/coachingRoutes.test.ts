@@ -222,5 +222,78 @@ describe('coaching routes', () => {
       expect(res.body).toHaveLength(2);
       expect(res.body[0].impulseText).toBe('Impuls 1');
     });
+
+    describe('pagination bounds', () => {
+      function seed(count: number) {
+        const today = todayMidnight();
+        for (let i = 0; i < count; i++) {
+          entries.push({
+            id: `c${i}`,
+            userId: 'user-premium',
+            date: new Date(today.getTime() - i * 24 * 3600_000),
+            impulseText: `Impuls ${i}`,
+            transitData: {},
+            isRead: false,
+          });
+        }
+      }
+
+      test('400 for a non-numeric limit instead of passing NaN to the query', async () => {
+        seed(3);
+        const app = buildApp();
+        const res = await request(app).get('/api/coaching/history?limit=abc').set(asPremium);
+
+        expect(res.status).toBe(400);
+      });
+
+      test('400 for a non-numeric offset', async () => {
+        seed(3);
+        const app = buildApp();
+        const res = await request(app).get('/api/coaching/history?offset=abc').set(asPremium);
+
+        expect(res.status).toBe(400);
+      });
+
+      test('400 for a limit above the maximum page size', async () => {
+        seed(3);
+        const app = buildApp();
+        const res = await request(app).get('/api/coaching/history?limit=100000').set(asPremium);
+
+        expect(res.status).toBe(400);
+      });
+
+      test('400 for a zero or negative limit', async () => {
+        seed(3);
+        const app = buildApp();
+
+        expect((await request(app).get('/api/coaching/history?limit=0').set(asPremium)).status).toBe(400);
+        expect((await request(app).get('/api/coaching/history?limit=-5').set(asPremium)).status).toBe(400);
+      });
+
+      test('400 for a negative offset', async () => {
+        seed(3);
+        const app = buildApp();
+        const res = await request(app).get('/api/coaching/history?offset=-1').set(asPremium);
+
+        expect(res.status).toBe(400);
+      });
+
+      test('400 for a fractional limit', async () => {
+        seed(3);
+        const app = buildApp();
+        const res = await request(app).get('/api/coaching/history?limit=2.5').set(asPremium);
+
+        expect(res.status).toBe(400);
+      });
+
+      test('accepts the documented maximum page size', async () => {
+        seed(3);
+        const app = buildApp();
+        const res = await request(app).get('/api/coaching/history?limit=100').set(asPremium);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveLength(3);
+      });
+    });
   });
 });

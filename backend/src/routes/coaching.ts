@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate, AuthenticatedRequest, requireTier } from '../middleware/auth';
 import { coachingLimiter } from '../middleware/rateLimit';
@@ -10,6 +11,14 @@ import { AIProxyRequest } from '../services/aiProvider';
 const router: Router = Router();
 
 const AI_PROVIDERS: Array<AIProxyRequest['provider']> = ['openai', 'anthropic', 'google', 'custom'];
+
+// Bounded pagination. Without an upper bound a single request can ask for the
+// user's entire coaching history; without integer/lower bounds a value like
+// "abc" reaches Prisma as NaN and a negative take silently reverses the page.
+const historySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  offset: z.coerce.number().int().min(0).default(0),
+});
 
 /**
  * Extract optional BYOK credentials from the request headers. The frontend
@@ -74,13 +83,13 @@ router.post('/daily/read', authenticate, asyncHandler(async (req: AuthenticatedR
 // Get coaching history
 router.get('/history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
   const userId = req.user!.userId;
-  const { limit = '30', offset = '0' } = req.query;
+  const { limit, offset } = historySchema.parse(req.query);
 
   const history = await prisma.dailyCoaching.findMany({
     where: { userId },
     orderBy: { date: 'desc' },
-    take: parseInt(limit as string),
-    skip: parseInt(offset as string),
+    take: limit,
+    skip: offset,
   });
 
   res.json(history);

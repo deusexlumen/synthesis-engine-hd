@@ -1,16 +1,33 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import OpenAI from 'openai';
-import { asyncHandler } from '../middleware/errorHandler';
+import { APIError, asyncHandler } from '../middleware/errorHandler';
 import { authenticate, AuthenticatedRequest, requireTier } from '../middleware/auth';
 import { synthesisLimiter } from '../middleware/rateLimit';
 import { prisma } from '../lib/prisma';
 
 const router = Router() as Router;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Built on first use, not at module load. The OpenAI constructor throws when
+// the key is missing, and index.ts imports this router at startup — an eager
+// client meant a deployment without OPENAI_API_KEY died before it listened,
+// instead of just having synthesis unavailable.
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new APIError(
+      'AI synthesis is not configured on this server.',
+      503,
+      'AI_NOT_CONFIGURED'
+    );
+  }
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey });
+  }
+  return openaiClient;
+}
 
 const generateSynthesisSchema = z.object({
   contextKey: z.string().min(1).max(64),
@@ -59,7 +76,7 @@ router.post('/generate', authenticate, requireTier(['PREMIUM', 'PRO']), synthesi
   // Generate new synthesis with OpenAI
   const prompt = buildSynthesisPrompt(data);
   
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini', // Use mini for cost efficiency
     messages: [
       {

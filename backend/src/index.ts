@@ -48,7 +48,10 @@ app.use(requestLogger);
 app.use(performanceMonitor);
 
 app.use(cookieParser());
-app.use(express.json({ limit: '10mb' }));
+// 1mb is ~20x the largest legitimate payload (a full HD chart plus synthesis
+// context); there are no file uploads on this API. The previous 10mb let an
+// authenticated client tie up memory and JSON parsing with a single request.
+app.use(express.json({ limit: '1mb' }));
 
 // Health check with database connectivity test
 app.get('/health', async (req, res) => {

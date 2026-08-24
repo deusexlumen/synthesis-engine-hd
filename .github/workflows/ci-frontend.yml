@@ -6,8 +6,9 @@ on:
     paths:
       - 'app/**'
       - '.github/workflows/ci-frontend.yml'
+  # No base-branch filter: a stacked pull request (one feature branch
+  # targeting another) would otherwise never get a CI run at all.
   pull_request:
-    branches: [main, master]
     paths:
       - 'app/**'
       - '.github/workflows/ci-frontend.yml'

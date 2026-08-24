@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/stores/appStore';
@@ -6,17 +6,33 @@ import { useAuthStore } from '@/stores/authStore';
 import { OnboardingFlow } from '@/sections/OnboardingFlow';
 import { ProcessingAnimation } from '@/sections/ProcessingAnimation';
 import { ResultsDashboard } from '@/sections/ResultsDashboard';
-import { AISettings } from '@/sections/AISettings';
-import { SettingsSection } from '@/sections/SettingsSection';
 import { ToastContainer } from '@/components/Toast';
 import { Button } from '@/components/ui/button';
 import { Brain, Settings, Home, Sparkles, LogOut } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth';
-import LoginPage from '@/pages/auth/LoginPage';
-import RegisterPage from '@/pages/auth/RegisterPage';
-import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
-import VerifyEmailPage from '@/pages/auth/VerifyEmailPage';
-import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage';
+import { Spinner } from '@/components/ui/spinner';
+
+// Auth pages are dead weight for a signed-in user, and the settings views are
+// only reached by an explicit click — none of them belong in the first paint.
+const LoginPage = lazy(() => import('@/pages/auth/LoginPage'));
+const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'));
+const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'));
+const VerifyEmailPage = lazy(() => import('@/pages/auth/VerifyEmailPage'));
+const ForgotPasswordPage = lazy(() => import('@/pages/auth/ForgotPasswordPage'));
+const AISettings = lazy(() =>
+  import('@/sections/AISettings').then((m) => ({ default: m.AISettings }))
+);
+const SettingsSection = lazy(() =>
+  import('@/sections/SettingsSection').then((m) => ({ default: m.SettingsSection }))
+);
+
+function ViewFallback() {
+  return (
+    <div className="flex items-center justify-center py-24">
+      <Spinner size="lg" className="text-purple-500" />
+    </div>
+  );
+}
 
 type AppView = 'main' | 'settings' | 'ai-config';
 
@@ -27,29 +43,31 @@ type AppView = 'main' | 'settings' | 'ai-config';
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
-        
-        {/* Protected Routes */}
-        <Route path="/" element={
-          <ProtectedRoute>
-            <MainApp />
-          </ProtectedRoute>
-        } />
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <MainApp />
-          </ProtectedRoute>
-        } />
-        
-        {/* Catch all - redirect to home */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<ViewFallback />}>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+
+          {/* Protected Routes */}
+          <Route path="/" element={
+            <ProtectedRoute>
+              <MainApp />
+            </ProtectedRoute>
+          } />
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <MainApp />
+            </ProtectedRoute>
+          } />
+
+          {/* Catch all - redirect to home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }
@@ -187,7 +205,9 @@ function MainApp() {
                       >
                         KI-Konfiguration
                       </motion.h1>
-                      <AISettings />
+                      <Suspense fallback={<ViewFallback />}>
+                        <AISettings />
+                      </Suspense>
                     </div>
                   </motion.div>
                 )}
@@ -208,7 +228,9 @@ function MainApp() {
                       >
                         Einstellungen
                       </motion.h1>
-                      <SettingsSection />
+                      <Suspense fallback={<ViewFallback />}>
+                        <SettingsSection />
+                      </Suspense>
                     </div>
                   </motion.div>
                 )}

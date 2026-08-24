@@ -13,6 +13,7 @@ import { aiRouter } from './routes/ai';
 import { transitRouter } from './routes/transit';
 import { coachingRouter } from './routes/coaching';
 import { journalRouter } from './routes/journal';
+import { billingRouter, stripeWebhookRouter } from './routes/billing';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { traceIdMiddleware } from './middleware/traceId';
 import { generalLimiter } from './middleware/rateLimit';
@@ -48,6 +49,12 @@ app.use(requestLogger);
 app.use(performanceMonitor);
 
 app.use(cookieParser());
+
+// Stripe verifies its webhook signature against the exact bytes it sent, so
+// this route must be mounted BEFORE the global JSON parser — a parsed body
+// fails verification every time. It carries its own express.raw parser.
+app.use('/api/billing/webhook', stripeWebhookRouter);
+
 // 1mb is ~20x the largest legitimate payload (a full HD chart plus synthesis
 // context); there are no file uploads on this API. The previous 10mb let an
 // authenticated client tie up memory and JSON parsing with a single request.
@@ -86,6 +93,7 @@ app.use('/api/ai', generalLimiter, aiRouter);
 app.use('/api/transit', generalLimiter, transitRouter);
 app.use('/api/coaching', generalLimiter, coachingRouter);
 app.use('/api/journal', generalLimiter, journalRouter);
+app.use('/api/billing', generalLimiter, billingRouter);
 
 // 404 handler (must come before the error handler — Express only invokes
 // 4-arg error middleware via next(err), so registration order here doesn't

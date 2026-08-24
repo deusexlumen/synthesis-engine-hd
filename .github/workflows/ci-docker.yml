@@ -7,8 +7,9 @@ on:
       - 'backend/**'
       - 'docker-compose.yml'
       - '.github/workflows/ci-docker.yml'
+  # No base-branch filter: a stacked pull request (one feature branch
+  # targeting another) would otherwise never get a CI run at all.
   pull_request:
-    branches: [main, master]
     paths:
       - 'backend/**'
       - 'docker-compose.yml'

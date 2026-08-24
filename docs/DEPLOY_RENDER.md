@@ -140,7 +140,7 @@ allerersten Aufruf ist normal, kein Fehler.
 | `VITE_API_URL` | — | ✅ Pass 2 | **ja** | Frontend ruft `localhost:3000` |
 | `RESEND_API_KEY` | ✅ Secret | — | nein | Mails nur in Logs — kein Verify, kein Reset |
 | `EMAIL_FROM` | ✅ Secret | — | mit Resend | — |
-| `OPENAI_API_KEY` | ✅ Secret | — | nein | KI-Synthese und Coaching antworten nicht |
+| `OPENAI_API_KEY` | ✅ Secret | — | nein | `/api/synthesis/generate` antwortet 503 `AI_NOT_CONFIGURED`; der Rest läuft normal |
 | `EPHEMERIS_PRO_ENABLED` | ✅ (fix `false`) | — | ja | — |
 | `PNPM_VERSION` | — | ✅ (fix `9.15.0`) | ja | — |
 | `PORT` | im Image gesetzt (3000) | — | — | — |

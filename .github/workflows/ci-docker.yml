@@ -47,6 +47,61 @@ jobs:
             && test -z "$(ls -A /app/ephemeris 2>/dev/null)" \
             && test "$EPHEMERIS_PRO_ENABLED" = "false"'
 
+      # Runtime smoke test. Building the image only proves it compiles; this
+      # boots it against a real PostgreSQL, which is also the only automated
+      # check that the hand-written Prisma migrations actually apply.
+      - name: Start PostgreSQL
+        run: |
+          docker network create synthesis-ci
+          docker run -d --name postgres --network synthesis-ci             -e POSTGRES_PASSWORD=postgres             -e POSTGRES_DB=synthesis_test             postgres:15-alpine
+          for _ in $(seq 1 30); do
+            if docker exec postgres pg_isready -U postgres -q; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "PostgreSQL did not become ready in 60s"
+          exit 1
+
+      - name: Boot the image and verify /health
+        run: |
+          docker run -d --name api --network synthesis-ci -p 3000:3000             -e DATABASE_URL=postgresql://postgres:postgres@postgres:5432/synthesis_test             -e DIRECT_URL=postgresql://postgres:postgres@postgres:5432/synthesis_test             -e JWT_SECRET=ci-access-secret-at-least-32-characters-long             -e JWT_REFRESH_SECRET=ci-refresh-secret-at-least-32-characters-long             synthesis-engine-backend:latest
+
+          # The entrypoint runs `prisma migrate deploy` before starting the
+          # server, so a successful response also means the schema applied.
+          for _ in $(seq 1 45); do
+            if body=$(curl -fsS http://localhost:3000/health 2>/dev/null); then
+              echo "$body"
+              echo "$body" | grep -q '"database":"connected"'
+              exit $?
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' api)" != "true" ]; then
+              echo "container exited before becoming healthy"
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "/health did not return 200 within 90s"
+          exit 1
+
+      # /health only runs SELECT 1, which succeeds against a completely empty
+      # database — a green health check is not proof that the schema exists.
+      - name: Verify migrations were applied
+        run: |
+          applied=$(docker exec postgres psql -U postgres -d synthesis_test -tAc             "SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL")
+          echo "applied migrations: $applied"
+          test "$applied" -ge 3
+
+      - name: Container logs
+        if: failure()
+        run: docker logs api || true
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker rm -f api postgres || true
+          docker network rm synthesis-ci || true
+
   # Professional image — Swiss Ephemeris premium tier (Phase D). Build-only:
   # proves the WITH_SWEPH=true variant (native module compile via node-gyp,
   # .se1 data copy) keeps building. Manual verification after a local build:

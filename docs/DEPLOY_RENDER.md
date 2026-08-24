@@ -141,6 +141,9 @@ allerersten Aufruf ist normal, kein Fehler.
 | `RESEND_API_KEY` | ✅ Secret | — | nein | Mails nur in Logs — kein Verify, kein Reset |
 | `EMAIL_FROM` | ✅ Secret | — | mit Resend | — |
 | `OPENAI_API_KEY` | ✅ Secret | — | nein | `/api/synthesis/generate` antwortet 503 `AI_NOT_CONFIGURED`; der Rest läuft normal |
+| `STRIPE_SECRET_KEY` | ✅ Secret | — | für Bezahlung | `/api/billing/*` antwortet 503 `BILLING_NOT_CONFIGURED` |
+| `STRIPE_WEBHOOK_SECRET` | ✅ Secret | — | für Bezahlung | Webhook wird mit 503 abgewiesen, Tier-Upgrades kommen nie an |
+| `STRIPE_PRICE_BASIC` / `_PREMIUM` / `_PRO` | ✅ Secret | — | für Bezahlung | Checkout für das jeweilige Tier gibt 503 |
 | `EPHEMERIS_PRO_ENABLED` | ✅ (fix `false`) | — | ja | — |
 | `PNPM_VERSION` | — | ✅ (fix `9.15.0`) | ja | — |
 | `PORT` | im Image gesetzt (3000) | — | — | — |
@@ -152,14 +155,41 @@ Auth läuft über die eigenen JWTs.
 
 ---
 
-## 7. Danach
+## 7. Stripe aktivieren
 
-Reihenfolge nach dem ersten grünen Deploy:
+Der Code ist vollständig (siehe [`STRIPE_INTEGRATION_SPEC.md`](STRIPE_INTEGRATION_SPEC.md)),
+es fehlen nur Konto und Konfiguration. Ohne die Variablen läuft die App
+normal weiter — nur `/api/billing/*` antwortet 503.
+
+1. **Produkte und Preise anlegen** (Stripe Dashboard → Products). Ein
+   wiederkehrender Preis pro Tier. Die Preis-IDs (`price_...`) unterscheiden
+   sich zwischen Test- und Live-Modus.
+2. **Webhook-Endpunkt registrieren** (Dashboard → Developers → Webhooks):
+   `https://synthesis-engine-api.onrender.com/api/billing/webhook`.
+   Events: `checkout.session.completed`, `customer.subscription.updated`,
+   `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`.
+   Das Signing Secret (`whsec_...`) ist `STRIPE_WEBHOOK_SECRET`.
+3. **Fünf Variablen im API-Service setzen**: `STRIPE_SECRET_KEY`,
+   `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_BASIC`, `STRIPE_PRICE_PREMIUM`,
+   `STRIPE_PRICE_PRO`.
+4. **Testkauf im Test-Modus**: Kartennummer `4242 4242 4242 4242`, beliebiges
+   künftiges Ablaufdatum. Danach prüfen, dass die `subscriptions`-Zeile des
+   Users `tier` und `status` bekommen hat.
+
+Lokal ohne Deployment testbar mit `stripe listen --forward-to
+localhost:3000/api/billing/webhook` — das Kommando gibt ein eigenes
+`whsec_...` aus.
+
+> Ein Downgrade per Webhook (Kündigung, geplatzte Zahlung) wirkt erst mit der
+> nächsten Token-Rotation, also nach höchstens 15 Minuten. Ein Upgrade wirkt
+> sofort, weil das Frontend nach dem Checkout `/api/auth/refresh` aufruft.
+
+---
+
+## 8. Danach
 
 1. `RESEND_API_KEY` + `EMAIL_FROM` setzen — ohne Mailversand kann sich niemand
    verifizieren oder ein Passwort zurücksetzen.
-2. Stripe Checkout + Webhooks bauen. Bis dahin gibt es kein Upgrade-Pfad;
-   Tiers sind nur direkt in der DB änderbar. Siehe `MONETIZATION_PLAN.md`.
-3. Astrodienst-Lizenz erst kaufen, wenn PREMIUM-Nachfrage messbar ist. Dann
+2. Astrodienst-Lizenz erst kaufen, wenn PREMIUM-Nachfrage messbar ist. Dann
    Pro-Image (`WITH_SWEPH=true`) als zweiten Service, siehe
    [`EPHEMERIS_LICENSE_RUNBOOK.md`](EPHEMERIS_LICENSE_RUNBOOK.md).

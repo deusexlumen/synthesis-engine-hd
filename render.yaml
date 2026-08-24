@@ -1,0 +1,137 @@
+# Render Blueprint — Synthesis Engine (standard tier, sweph-free)
+#
+# Deploys the two runtime pieces; PostgreSQL is external (Supabase), so no
+# `databases:` block here — the connection strings are entered as secrets.
+#
+#   synthesis-engine-api  Docker web service, backend/Dockerfile (WITH_SWEPH
+#                         defaults to false, so no AGPL Swiss Ephemeris code
+#                         ships and no Astrodienst licence is required).
+#   synthesis-engine-app  static site, Vite build of app/.
+#
+# TWO-PASS APPLY. The two services reference each other's URLs, and neither
+# hostname exists before the first apply. Render's `fromService` can only
+# supply a bare hostname, while the code needs a full origin (VITE_API_URL is
+# concatenated as `${API_BASE}/api/...`, CORS_ORIGINS is matched against an
+# Origin header). So those three vars are `sync: false` and set by hand:
+#
+#   Pass 1  Apply this blueprint. Fill in the secrets Render prompts for
+#           (DATABASE_URL, DIRECT_URL, JWT_*). Leave the three URL vars empty
+#           for now — the API will start, the frontend will build.
+#   Pass 2  Copy the two resulting URLs, then set:
+#             api  CORS_ORIGINS = https://synthesis-engine-app.onrender.com
+#             api  FRONTEND_URL = https://synthesis-engine-app.onrender.com
+#             app  VITE_API_URL = https://synthesis-engine-api.onrender.com
+#           Saving these redeploys the API and rebuilds the frontend (
+#           VITE_* is baked in at build time, not read at runtime).
+#
+# Database migrations run from the container entrypoint
+# (backend/docker-entrypoint.sh) on every start, not from `preDeployCommand`
+# — that field requires a paid instance type. See the entrypoint for the
+# single-instance caveat.
+
+services:
+  # --------------------------------------------------------------------------
+  # API
+  # --------------------------------------------------------------------------
+  - type: web
+    name: synthesis-engine-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # Express reads /health and verifies DB connectivity with SELECT 1, so a
+    # green health check also proves the Supabase connection string works.
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    # Monorepo: a docs-only or frontend-only commit should not rebuild the API.
+    buildFilter:
+      paths:
+        - backend/**
+        - render.yaml
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Runtime queries. Supabase transaction pooler (port 6543): IPv4-
+      # reachable, which the direct db.<ref>.supabase.co host is not.
+      #   postgresql://postgres.<ref>:<pw>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+      - key: DATABASE_URL
+        sync: false
+
+      # Migrations only (schema.prisma -> datasource.directUrl). Must be a
+      # SESSION-mode connection — `prisma migrate deploy` needs advisory locks
+      # and prepared statements, which the transaction pooler does not support.
+      # Supabase session pooler, port 5432:
+      #   postgresql://postgres.<ref>:<pw>@aws-0-<region>.pooler.supabase.com:5432/postgres
+      - key: DIRECT_URL
+        sync: false
+
+      # backend/src/services/auth.ts throws at import time if either secret is
+      # missing or shorter than 32 characters, so a bad value crash-loops the
+      # service. Generate locally and paste:
+      #   openssl rand -base64 48
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+
+      # Pass 2. Comma-separated allowlist read at backend/src/index.ts:37.
+      # Without it, production falls back to https://synthesis-engine.com and
+      # every browser request from the Render frontend fails CORS.
+      - key: CORS_ORIGINS
+        sync: false
+
+      # Pass 2. Base for password-reset and e-mail-verification links.
+      - key: FRONTEND_URL
+        sync: false
+
+      # Transactional e-mail. Unset, the backend only logs mails to stdout —
+      # registration works, but nobody can verify an address or reset a
+      # password. Required before real signups.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+      # Server-side AI proxy (synthesis, coaching). Unset, those endpoints
+      # fail; the rest of the app works.
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # Professional ephemeris stays off: this image is built without the
+      # native sweph module, so the resolver would fall back to the standard
+      # provider anyway. Flipping this to true needs the WITH_SWEPH=true image
+      # AND the Astrodienst licence — see docs/EPHEMERIS_LICENSE_RUNBOOK.md.
+      - key: EPHEMERIS_PRO_ENABLED
+        value: "false"
+
+  # --------------------------------------------------------------------------
+  # Frontend
+  # --------------------------------------------------------------------------
+  - type: web
+    name: synthesis-engine-app
+    runtime: static
+    rootDir: app
+    buildCommand: pnpm install --frozen-lockfile && pnpm build
+    staticPublishPath: dist
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - app/**
+        - render.yaml
+    envVars:
+      - key: PNPM_VERSION
+        value: 9.15.0
+
+      # Pass 2. Baked into the bundle at build time (import.meta.env), so
+      # changing it must trigger a rebuild, not just a restart.
+      - key: VITE_API_URL
+        sync: false
+
+    routes:
+      # App uses BrowserRouter — every deep link must serve index.html or a
+      # refresh on /dashboard returns 404.
+      - type: rewrite
+        source: /*
+        destination: /index.html

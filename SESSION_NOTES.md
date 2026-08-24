@@ -104,9 +104,9 @@
 - Historische Docs (`IMPLEMENTATION_SUMMARY.md`, `SYNTHESIS_ENGINE_EXECUTIVE_SUMMARY.md`, `docs/EPHEMERIS_IMPLEMENTATION_GUIDE.md`, `docs/PROFESSIONAL_CALCULATIONS_SPEC.md`, `docs/SWISS_EPHEMERIS_PROFESSIONAL_SETUP.md`) mit Hinweis-Header als Tauri-Ära markiert statt umgeschrieben.
 
 ### Bekannte offene Punkte (nicht launch-blockierend)
-- **AuthProvider-Unmount-Bug**: bei `isLoading` unmountet der Provider den Router-Baum; `navigate()` direkt nach Login kann hängen (in Phase 4 gefunden, offen).
-- **Nachgelagerte LOW-Findings**: 10-MB-JSON-Body-Limit zu großzügig; `parseInt` ohne Bound-Checks; Temperature-Slider ruft unbeabsichtigt `setBaseUrl`; 737-KB-Frontend-Chunk ohne Code-Splitting.
-- **M9**: `ci-docker.yml` baut das Image nur — Runtime-Healthcheck (`/health` + `.se1`-Dateien im Container) fehlt in CI.
+- ~~**AuthProvider-Unmount-Bug**~~ — behoben: `AuthProvider` blockiert nur noch auf `isInitialized`, ein späteres `isLoading` unmountet den Router nicht mehr.
+- ~~**Nachgelagerte LOW-Findings**~~ — alle behoben, siehe 2026-08-24.
+- ~~**M9**~~ — behoben, siehe 2026-08-24.
 
 ## 2026-07-30 — Präzisions-Ephemeris als Premium-Feature (Phasen A–E)
 
@@ -124,3 +124,42 @@
 - **Astrodienst-Lizenzkauf** (~500 €): Pflicht VOR jedem öffentlichen Deployment mit sweph (AGPL), siehe Runbook.
 - **`EPHEMERIS_PRO_ENABLED=true`** im Pro-Deployment sicherstellen (im `WITH_SWEPH`-Image bereits eingebrannt; manuelle Deployments müssen es explizit setzen).
 - **`RESEND_API_KEY` / `EMAIL_FROM`** für E-Mail-Versand.
+
+## 2026-08-24 — Deployment-Vorbereitung, LOW-Findings, CI-Smoke-Test
+
+### Deployment (PR #2)
+- `render.yaml` + `docs/DEPLOY_RENDER.md`: Render (Docker-API + Static-Frontend) mit Supabase als externem PostgreSQL. Standard-Tier ohne `WITH_SWEPH` — **keine Astrodienst-Lizenz nötig, um live zu gehen**.
+- `backend/docker-entrypoint.sh` führt `prisma migrate deploy` aus und startet erst danach die API; `set -e`, also bricht der Container bei fehlgeschlagener Migration ab statt gegen ein unmigriertes Schema zu booten. `prisma` dafür von devDependencies nach dependencies.
+- **`DATABASE_URL` und `DIRECT_URL` müssen auf Supabase unterschiedlich sein.** `schema.prisma` verdrahtet `directUrl`, `.env.example` zeigte aber beide auf dieselbe Direktverbindung. Auf Render scheitert das doppelt: `db.<ref>.supabase.co` ist IPv6-only (Render geht IPv4 raus), und `migrate deploy` braucht Advisory Locks, die der Transaction Pooler nicht kann. Jetzt: Transaction Pooler (6543) für Laufzeit, Session Pooler (5432) für Migrationen.
+- `node:20-slim` hat kein `openssl` — Prisma erkannte die libssl-Version nicht und wählte die falsche Query-Engine. `openssl` + `ca-certificates` ergänzt.
+- Zwei-Pass-Apply nötig: `CORS_ORIGINS`, `FRONTEND_URL`, `VITE_API_URL` sind `sync: false`, weil beide Services die URL des jeweils anderen brauchen und keine davon vor dem ersten Apply existiert.
+
+### Launch-Blocker gefunden und behoben (PR #3)
+- **Die API startete nicht ohne `OPENAI_API_KEY`.** `synthesis.ts` baute `new OpenAI()` beim Modul-Laden; der SDK-Konstruktor wirft ohne Key, und `index.ts` importiert den Router beim Start — der Prozess starb vor dem ersten Listen. Ein Render-Deploy mit nur den vier Pflicht-Secrets wäre in eine Crash-Loop gelaufen.
+- Warum es 198 grüne Tests nicht fanden: alle Suites mocken `openai` weg, und lokal lädt `@prisma/client` beim Import `backend/.env` und füllt die Variable wieder auf. Nur ein echter Container — der keine `.env` hat — reproduziert es. Gefunden hat es der neue CI-Smoke-Test beim ersten lokalen Probelauf.
+- Client wird jetzt bei erster Nutzung gebaut, fehlender Key gibt `503 AI_NOT_CONFIGURED`.
+- Dieselbe `.env`-Maskierung schlug danach von der anderen Seite zu: `synthesis.test.ts` setzte den Key nie selbst und war grün, weil `.env` ihn lieferte. In CI rot. Suite ist jetzt eigenständig — verifiziert mit beiseitegeschobener `backend/.env`.
+
+### LOW-Findings (alle behoben)
+- `GET /coaching/history`: `parseInt` ohne Bounds. Jetzt zod-Schema wie in `transit.ts`, Cap 100, `?limit=abc` gibt 400 statt NaN an Prisma.
+- Rate-Limit-Env: `parseInt` gab bei Tippfehler NaN, was express-rate-limit als *kein Limit* liest. Jetzt strikter Positiv-Integer-Parse mit Fallback.
+- JSON-Body-Limit 10 MB auf 1 MB (keine Uploads auf der API).
+- Temperature-Slider rief `setBaseUrl` und schrieb damit persistent z. B. `0.8` in die Provider-Base-URL, während die Temperatur nie geändert wurde. Dispatch in `aiSettingsFields.ts` ausgelagert; `setBaseUrl` ist bewusst nicht im Setter-Contract, eine Wiederholung ist damit ein Typfehler.
+- Code-Splitting: größter Chunk 858 kB auf 229 kB, App-Chunk auf 174 kB. Vendor-Chunks getrennt, Auth-Seiten und Settings lazy.
+
+### CI (M9)
+- `ci-docker.yml` startet jetzt PostgreSQL, bootet das Image dagegen, wartet auf `/health` und prüft, dass das Schema angekommen ist.
+- Die Migrations-Prüfung ist **nicht** redundant zum Healthcheck: `/health` macht `SELECT 1`, was auch gegen eine leere Datenbank erfolgreich ist. Beim Entwickeln des Schritts sprach die App durch einen übrig gebliebenen Container mit einer unmigrierten Datenbank — `/health` meldete trotzdem `connected`.
+- **Erster automatisierter Nachweis, dass die handgeschriebenen Migrationen laufen**: alle drei angewandt, 22 Tabellen. In CI verifiziert.
+- Alle drei Workflows filterten `pull_request` auf `branches: [main, master]` — gestapelte PRs bekamen dadurch nie CI. Base-Filter entfernt.
+
+### Tests
+- Backend 214 (vorher 198), Frontend 41 (vorher 36). Lint und Typecheck grün, alle drei Workflows grün auf `main`.
+
+### Weiterhin offen
+- **Stripe**: Checkout und Webhooks fehlen komplett, nur Prisma-Schema vorhanden. Ohne das gibt es keinen Upgrade-Pfad; Tiers sind nur direkt in der DB änderbar.
+- **Deployment selbst**: Supabase-Projekt und Render-Account müssen manuell angelegt werden, dann Zwei-Pass-Apply nach `docs/DEPLOY_RENDER.md`.
+- **`RESEND_API_KEY` / `EMAIL_FROM`**: ohne Mailversand kann sich niemand verifizieren oder ein Passwort zurücksetzen.
+- **PDF-Export ist unverdrahtet**: `PDFExportButton` wird nirgends importiert, obwohl der `MONETIZATION_PLAN` PDF-Export als BASIC-Feature führt.
+- **192 Inkarnationskreuze**: weiterhin nur 64 thematische Namen gemappt.
+- **Astrodienst-Lizenz**: erst nötig, wenn PREMIUM/PRO mit Swiss Ephemeris ausgeliefert wird.

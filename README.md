@@ -123,18 +123,22 @@ git clone https://github.com/deusexlumen/synthesis-engine-hd.git
 cd synthesis-engine-hd
 
 # 2. Mit Docker Compose starten
+#    Der Container-Entrypoint führt `prisma migrate deploy` selbst aus,
+#    bevor die API startet — kein separater Migrationsschritt nötig.
 docker-compose up -d
 
-# 3. Datenbank-Migrationen ausführen
-cd backend
-pnpm install
-pnpm exec prisma migrate deploy
-
-# 4. Frontend starten
-cd ../app
+# 3. Frontend starten
+cd app
 pnpm install
 pnpm dev
 ```
+
+### Deployment (Render + Supabase)
+
+Schritt-für-Schritt-Anleitung inklusive vollständiger Env-Matrix:
+[`docs/DEPLOY_RENDER.md`](docs/DEPLOY_RENDER.md). Der Blueprint
+[`render.yaml`](render.yaml) deployt das Standard-Tier (ohne Swiss Ephemeris),
+für das keine Astrodienst-Lizenz erforderlich ist.
 
 ### Manuelle Installation
 

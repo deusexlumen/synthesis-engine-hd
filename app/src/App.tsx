@@ -8,7 +8,7 @@ import { ProcessingAnimation } from '@/sections/ProcessingAnimation';
 import { ResultsDashboard } from '@/sections/ResultsDashboard';
 import { ToastContainer } from '@/components/Toast';
 import { Button } from '@/components/ui/button';
-import { Brain, Settings, Home, Sparkles, LogOut } from 'lucide-react';
+import { Brain, CreditCard, Settings, Home, Sparkles, LogOut } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -25,6 +25,11 @@ const AISettings = lazy(() =>
 const SettingsSection = lazy(() =>
   import('@/sections/SettingsSection').then((m) => ({ default: m.SettingsSection }))
 );
+const BillingSection = lazy(() =>
+  import('@/sections/BillingSection').then((m) => ({ default: m.BillingSection }))
+);
+const BillingSuccessPage = lazy(() => import('@/pages/billing/BillingSuccessPage'));
+const BillingCancelledPage = lazy(() => import('@/pages/billing/BillingCancelledPage'));
 
 function ViewFallback() {
   return (
@@ -34,7 +39,7 @@ function ViewFallback() {
   );
 }
 
-type AppView = 'main' | 'settings' | 'ai-config';
+type AppView = 'main' | 'settings' | 'ai-config' | 'billing';
 
 // ============================================================================
 // MAIN APP ROUTER
@@ -61,6 +66,18 @@ function App() {
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <MainApp />
+            </ProtectedRoute>
+          } />
+
+          {/* Stripe Checkout redirects back to these */}
+          <Route path="/billing/success" element={
+            <ProtectedRoute>
+              <BillingSuccessPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/billing/cancelled" element={
+            <ProtectedRoute>
+              <BillingCancelledPage />
             </ProtectedRoute>
           } />
 
@@ -125,6 +142,12 @@ function MainApp() {
                 onClick={() => setCurrentView('ai-config')}
                 icon={<Brain className="w-4 h-4" />}
                 label="KI"
+              />
+              <NavButton
+                active={currentView === 'billing'}
+                onClick={() => setCurrentView('billing')}
+                icon={<CreditCard className="w-4 h-4" />}
+                label="Plan"
               />
               <NavButton
                 active={currentView === 'settings'}
@@ -207,6 +230,29 @@ function MainApp() {
                       </motion.h1>
                       <Suspense fallback={<ViewFallback />}>
                         <AISettings />
+                      </Suspense>
+                    </div>
+                  </motion.div>
+                )}
+
+                {currentView === 'billing' && (
+                  <motion.div
+                    key="billing"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="p-6"
+                  >
+                    <div className="max-w-4xl mx-auto">
+                      <motion.h1
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-3xl font-serif font-medium mb-8"
+                      >
+                        Plan & Abrechnung
+                      </motion.h1>
+                      <Suspense fallback={<ViewFallback />}>
+                        <BillingSection />
                       </Suspense>
                     </div>
                   </motion.div>

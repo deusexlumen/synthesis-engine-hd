@@ -157,9 +157,34 @@
 - Backend 214 (vorher 198), Frontend 41 (vorher 36). Lint und Typecheck grün, alle drei Workflows grün auf `main`.
 
 ### Weiterhin offen
-- **Stripe**: Checkout und Webhooks fehlen komplett, nur Prisma-Schema vorhanden. Ohne das gibt es keinen Upgrade-Pfad; Tiers sind nur direkt in der DB änderbar.
+- ~~**Stripe**~~ und ~~**PDF-Export**~~ — erledigt, siehe unten.
 - **Deployment selbst**: Supabase-Projekt und Render-Account müssen manuell angelegt werden, dann Zwei-Pass-Apply nach `docs/DEPLOY_RENDER.md`.
 - **`RESEND_API_KEY` / `EMAIL_FROM`**: ohne Mailversand kann sich niemand verifizieren oder ein Passwort zurücksetzen.
-- **PDF-Export ist unverdrahtet**: `PDFExportButton` wird nirgends importiert, obwohl der `MONETIZATION_PLAN` PDF-Export als BASIC-Feature führt.
 - **192 Inkarnationskreuze**: weiterhin nur 64 thematische Namen gemappt.
 - **Astrodienst-Lizenz**: erst nötig, wenn PREMIUM/PRO mit Swiss Ephemeris ausgeliefert wird.
+
+## 2026-08-24 (später) — Stripe-Billing und PDF-Export
+
+### Stripe (PR #5)
+- Spec: `docs/STRIPE_INTEGRATION_SPEC.md`. Endpunkte: `/api/billing/checkout`, `/portal`, `/subscription`, `/webhook`.
+- **Der Webhook muss am globalen `express.json()` vorbei.** `constructEvent` prüft die Signatur gegen die exakt gesendeten Bytes; ein geparster Body scheitert immer. Deshalb vor dem globalen Parser gemountet, mit eigenem `express.raw`. Kein `authenticate` (die Signatur *ist* die Authentifizierung) und kein Rate-Limiter — Stripes Retries zu drosseln macht aus einem vorübergehenden Fehler einen dauerhaft verlorenen Event.
+- **Idempotenz**: Rechnungen per `upsert` auf dem vorhandenen Unique-Index `stripeInvoiceId`. Ein Subscription-Event mit älterem Periodenende wird ignoriert — sonst macht ein verzögerter Retry ein frisches Upgrade rückgängig.
+- **Konfiguration lazy**: Preis-IDs liegen in Env, weil sie sich zwischen Test- und Live-Modus unterscheiden. Fehlt etwas, antwortet der Endpunkt `503 BILLING_NOT_CONFIGURED` — kein Wurf beim Import. Genau die Fehlerklasse, die vorher die ganze API ohne `OPENAI_API_KEY` am Start hinderte.
+- **Merke**: `current_period_start`/`current_period_end` sind in den 2025er API-Versionen von der Subscription auf deren Items gewandert. Aus dem Gedächtnis geschrieben ergibt das ein stilles `undefined`.
+- **Tier-Verzögerung**: Das Tier steckt im 15-Minuten-Access-Token. Nach dem Checkout ruft die Erfolgsseite `/api/auth/refresh` (die Query enthält `subscription`), ein Upgrade wirkt also sofort. Ein Downgrade per Webhook wirkt erst mit der nächsten Token-Rotation — bewusst akzeptiert.
+- **Tests ohne Stripe-Konto**: Fixtures werden mit `stripe.webhooks.generateTestHeaderString` signiert. Signaturprüfung, Manipulation, Event-Routing, Tier-Mapping, Out-of-Order und Replay sind echt abgedeckt, ohne Netzwerkaufruf.
+- UI: „Plan"-Ansicht mit Tier, Plan-Karten und Portal-Link, plus `/billing/success` und `/billing/cancelled`.
+
+### PDF-Export (PR #6)
+- `PDFExportButton` war nirgends importiert. Jetzt im Ergebnis-Header, gated auf BASIC/PREMIUM/PRO.
+- **Beim Verdrahten kam heraus, dass der Report nie funktioniert haben kann**: `ChartData.numerology` verlangte sieben Zahlen, vier davon (`soulUrge`, `personality`, `maturity`, `birthDay`) hat `MillmanProfile` nie erzeugt. Gerendert hätte das `undefined` in einen bezahlten Report gedruckt. Sektion an das reale Modell angepasst; `ChartData` ist exportiert und das Prop getypt, damit die Zuordnung künftig am Compiler scheitert statt still zu driften.
+- **Bundle-Falle**: `manualChunks` schob alle `node_modules` in einen statisch geladenen `vendor`-Chunk. Sobald der PDF-Code erreichbar war, landeten jspdf und html2canvas im Initial-Load — `vendor` sprang von 186 kB auf 942 kB. Jetzt überlässt die Konfiguration unbekannte Pakete Rollup, und der PDF-Stack hat eigene Chunks (`vendor-pdf` 377 kB, `vendor-canvas` 196 kB), die nur beim Export geladen werden. Kein Chunk über 500 kB.
+
+### Wieder dieselbe `.env`-Maskierung
+- `billingWebhook.test.ts` zog über den Import-Baum `services/auth` mit, das ohne `JWT_SECRET` beim Import wirft. Lokal deckte `backend/.env` das ab, in CI nicht. Gefunden, indem die volle Suite mit beiseitegeschobener `.env` lief — das gehört bei neuen Suiten zur Prüfung.
+
+### Tests
+- Backend 244 (vorher 214), Frontend 49 (vorher 41). Alle Workflows grün auf `main`.
+
+### Was Stripe noch braucht
+Nur Konto und Konfiguration, kein Code: Produkte und Preise anlegen, Webhook-Endpunkt registrieren, fünf Variablen setzen. Schritte in `docs/DEPLOY_RENDER.md` §7. Ohne die Variablen läuft die App unverändert weiter.

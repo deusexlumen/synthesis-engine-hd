@@ -107,6 +107,25 @@ const VALID_BODY = {
   },
 };
 
+// The OpenAI SDK is mocked above, so the value is never used for a real call
+// — but the route refuses with 503 AI_NOT_CONFIGURED when the variable is
+// missing. Setting it here keeps the suite independent of whether a local
+// backend/.env happens to exist; CI has none, which is where its absence
+// first showed up.
+const originalKey = process.env.OPENAI_API_KEY;
+
+beforeAll(() => {
+  process.env.OPENAI_API_KEY = 'test-key-not-used-sdk-is-mocked';
+});
+
+afterAll(() => {
+  if (originalKey === undefined) {
+    delete process.env.OPENAI_API_KEY;
+  } else {
+    process.env.OPENAI_API_KEY = originalKey;
+  }
+});
+
 beforeEach(() => {
   cache = [];
   jest.clearAllMocks();

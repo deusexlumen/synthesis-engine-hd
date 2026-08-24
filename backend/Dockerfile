@@ -10,7 +10,8 @@
 #     docker build --build-arg WITH_SWEPH=true -t synthesis-backend-pro .
 #
 # Verify a standard image is sweph-free:
-#   docker run --rm synthesis-backend sh -c "test ! -d node_modules/sweph"
+#   docker run --rm --entrypoint sh synthesis-backend -c "test ! -d node_modules/sweph"
+#   (--entrypoint is required: the default entrypoint runs prisma migrate deploy)
 # ============================================================================
 
 # Build variant switch. Declared before the first FROM so it can also select
@@ -88,6 +89,16 @@ WORKDIR /app
 # Enable pnpm
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
+# Prisma picks its query-engine binary from the detected libssl version.
+# node:20-slim ships without the openssl package, so detection fails and Prisma
+# falls back to the openssl-1.1.x engine ("Prisma failed to detect the
+# libssl/openssl version to use") — the wrong binary for Debian bookworm.
+# ca-certificates is needed for the TLS connection to a hosted Postgres.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      openssl \
+      ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Runtime build tools are only needed for the native sweph module; the
 # standard image ships without them (slimmer, smaller attack surface).
 RUN if [ "$WITH_SWEPH" = "true" ]; then \
@@ -113,7 +124,14 @@ COPY --from=ephe /app/ephemeris/ ./ephemeris/
 # Copy built application and Prisma schema, generate client locally
 COPY --from=builder /app/dist/ ./dist/
 COPY prisma/ ./prisma/
-RUN npx -y prisma@5.22.0 generate
+# prisma is a regular dependency (not devDependency), so the CLI is already in
+# node_modules here: one version for both `generate` at build time and
+# `migrate deploy` at container start, and no npm registry access at runtime.
+RUN npx prisma generate
+
+# Entrypoint applies pending migrations before starting the API.
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
 
 # Non-root user for security
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
@@ -133,4 +151,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 EXPOSE 3000
 
-CMD ["node", "dist/index.js"]
+ENTRYPOINT ["./docker-entrypoint.sh"]

@@ -42,7 +42,7 @@ jobs:
       # makes the image available to the local daemon for this check.
       - name: Verify standard image is sweph-free
         run: |
-          docker run --rm synthesis-engine-backend:latest sh -c '\
+          docker run --rm --entrypoint sh synthesis-engine-backend:latest -c '\
             test ! -d node_modules/sweph \
             && test -z "$(ls -A /app/ephemeris 2>/dev/null)" \
             && test "$EPHEMERIS_PRO_ENABLED" = "false"'
@@ -51,7 +51,7 @@ jobs:
   # proves the WITH_SWEPH=true variant (native module compile via node-gyp,
   # .se1 data copy) keeps building. Manual verification after a local build:
   #   docker build --build-arg WITH_SWEPH=true -t synthesis-backend-pro ./backend
-  #   docker run --rm synthesis-backend-pro sh -c "test -d node_modules/sweph && ls /app/ephemeris/*.se1"
+  #   docker run --rm --entrypoint sh synthesis-backend-pro -c "test -d node_modules/sweph && ls /app/ephemeris/*.se1"
   build-image-pro:
     runs-on: ubuntu-latest
 

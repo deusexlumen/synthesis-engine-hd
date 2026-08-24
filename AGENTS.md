@@ -141,8 +141,8 @@ synthesis-engine/
 │   ├── download-ephemeris.sh
 │   └── ephemeris-checksums.sha256
 │
-├── docker-compose.yml            # Docker Compose (Postgres, Redis, Backend)
-├── docker-compose.dev.yml        # Dev-Setup mit Hot-Reload
+├── docker-compose.yml            # Docker Compose (Postgres, Backend; Profil "pro" → backend-pro)
+├── docker-compose.dev.yml        # Dev-Setup mit Hot-Reload (Postgres, Redis, Backend)
 ├── setup.sh / setup.ps1          # Projekt-Setup-Skripte
 └── AGENTS.md                     # Diese Datei
 ```
@@ -232,6 +232,9 @@ pnpm dev
 # Typecheck ohne Emit
 tsc --noEmit
 
+# Hinweis: Das Backend hat KEIN lint-Script. Die CI fängt das mit
+# `pnpm lint || echo "No lint script configured"` ab — kein Fehler.
+
 # Tests
 pnpm test                 # Jest (einmalig)
 pnpm run test:watch       # Jest (Watch-Modus)
@@ -253,8 +256,11 @@ Die Migrationen in `backend/prisma/migrations/` sind **handgeschriebene SQL-Migr
 ### Docker (Gesamtes Projekt)
 
 ```bash
-# PostgreSQL + Redis + Backend starten
+# PostgreSQL + Backend starten (Standard-Image, sweph-frei)
 docker-compose up
+
+# Professional-Backend (Port 3001) zusätzlich starten
+docker compose --profile pro up -d backend-pro
 
 # Dev-Setup mit Hot-Reload
 docker-compose -f docker-compose.dev.yml up
@@ -314,7 +320,7 @@ docker build -t synthesis-backend .
    const data = schema.parse(req.body);
    ```
 
-3. **Auth**: JWT Middleware mit `authenticate`, `requireTier`, `requireRole`, `requirePermission`
+3. **Auth**: JWT Middleware in `middleware/auth.ts` — `authenticate`, `optionalAuth`, `requireRole(role)`, `requireTier(tiers[])`, `requireOwnership(getResourceUserId)`
 
 4. **Service-Pattern**: Geschäftslogik in `services/` auslagern, Routes bleiben dünn
 

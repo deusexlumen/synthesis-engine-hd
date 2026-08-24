@@ -196,7 +196,7 @@ Dazu `GET /health` (außerhalb von `/api`) mit DB-Konnektivitätsprüfung.
    ```ts
    router.post('/generate', authenticate, requireTier(['PREMIUM','PRO']), synthesisLimiter, asyncHandler(...));
    ```
-   Verfügbar in `middleware/auth.ts`: `authenticate`, `optionalAuth`, `requireRole(role)`, `requireTier(tiers[])`, `requireOwnership(getResourceUserId)`. (`AGENTS.md` nennt zusätzlich ein `requirePermission` — das existiert im Code **nicht**.)
+   Verfügbar in `middleware/auth.ts`: `authenticate`, `optionalAuth`, `requireRole(role)`, `requireTier(tiers[])`, `requireOwnership(getResourceUserId)`. Ein `requirePermission` gibt es **nicht** (ältere Doku-Stände nannten es).
 5. **Client-Berechnungen nie vertrauen**: `POST /api/hd/save` akzeptiert nur Geburtsdaten und rechnet den Chart serverseitig neu (Audit-Befund M13). Dieses Muster bei neuen Persistenz-Endpunkten übernehmen.
 6. **Logging über pino** (`lib/logger.ts`) mit Trace-ID, nicht `console.log` in Request-Pfaden.
 

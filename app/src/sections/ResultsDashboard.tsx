@@ -28,6 +28,9 @@ import { AICoaching } from '@/components/AICoaching';
 import { EmptyState } from '@/components/EmptyState';
 import { JournalSection } from '@/sections/JournalSection';
 import { GeneKeysSection } from '@/sections/GeneKeysSection';
+import { PDFExportButton } from '@/components/PDFExportButton';
+import { useUserTier } from '@/stores/authStore';
+import type { ChartData } from '@/services/pdfExport';
 import { TransitSection } from '@/sections/TransitSection';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { AccuracyBadge } from '@/components/AccuracyBadge';
@@ -113,9 +116,13 @@ function TooltipLabel({ label, className }: { label: string; className?: string 
   );
 }
 
+// PDF export is a BASIC feature in MONETIZATION_PLAN.md.
+const PDF_EXPORT_TIERS = ['BASIC', 'PREMIUM', 'PRO'];
+
 export function ResultsDashboard() {
   const { userData, hdChart, millmanProfile, accuracy, missingBodies, reset } = useAppStore();
   const [activeTab, setActiveTab] = useState('overview');
+  const tier = useUserTier();
 
   if (!hdChart || !millmanProfile) {
     return (
@@ -128,8 +135,45 @@ export function ResultsDashboard() {
   const energyStyle = energyTypeStyles[hdChart.energyType] || energyTypeStyles.GENERATOR;
   const numberColor = numberColors[millmanProfile.destinyNumber] || 'text-purple-400';
 
+  const reportData: ChartData = {
+    humanDesign: {
+      energyType: hdChart.energyType,
+      authority: hdChart.authority,
+      profile: hdChart.profile,
+      incarnationCross: hdChart.incarnationCross,
+      definedCenters: hdChart.definedCenters,
+      gates: hdChart.gates.map((gate) => ({
+        number: gate.number,
+        line: gate.line,
+        planet: gate.planet,
+      })),
+      channels: hdChart.channels.map((channel) => ({
+        gate1: channel.gate1,
+        gate2: channel.gate2,
+      })),
+    },
+    numerology: {
+      lifePathString: millmanProfile.lifePathString,
+      destinyNumber: millmanProfile.destinyNumber,
+      personalYear: millmanProfile.personalYear,
+      hasMasterNumber: millmanProfile.hasMasterNumber,
+      soulUrgeString: millmanProfile.soulUrgeString,
+      expressionString: millmanProfile.expressionString,
+      challenges: millmanProfile.challenges,
+      pinnacles: millmanProfile.pinnacles,
+    },
+    birthData: userData
+      ? {
+          date: userData.birthDate,
+          time: userData.birthTime,
+          location: userData.birthPlace,
+        }
+      : undefined,
+  };
+
   return (
-    <div className="min-h-screen p-4 sm:p-6 pb-24">
+    // id is the capture target for the "current view as image" export.
+    <div id="results-dashboard" className="min-h-screen p-4 sm:p-6 pb-24">
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
@@ -151,6 +195,9 @@ export function ResultsDashboard() {
             </h1>
           </div>
           <div className="flex gap-2">
+            {PDF_EXPORT_TIERS.includes(tier) && (
+              <PDFExportButton variant="menu" elementId="results-dashboard" chartData={reportData} />
+            )}
             <Button variant="outline" size="icon" className="border-white/10 hover:bg-white/5 rounded-xl">
               <Share2 className="w-4 h-4" />
             </Button>

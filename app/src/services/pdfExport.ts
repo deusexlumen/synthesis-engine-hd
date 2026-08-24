@@ -19,7 +19,7 @@ interface ExportOptions {
   orientation?: 'portrait' | 'landscape';
 }
 
-interface ChartData {
+export interface ChartData {
   humanDesign?: {
     energyType: string;
     authority: string;
@@ -36,14 +36,18 @@ interface ChartData {
       gate2: number;
     }>;
   };
+  // Mirrors MillmanProfile. The previous shape asked for seven plain numbers
+  // (soulUrge, personality, maturity, birthDay) that the calculator has never
+  // produced — rendering it would have printed "undefined" into the report.
   numerology?: {
-    lifePath: number;
-    destiny: number;
-    soulUrge: number;
-    personality: number;
-    maturity: number;
-    birthDay: number;
-    expression: number;
+    lifePathString: string;
+    destinyNumber: number;
+    personalYear: number;
+    hasMasterNumber?: boolean;
+    soulUrgeString?: string;
+    expressionString?: string;
+    challenges?: Array<{ ageRange: string; challengeNumber: number }>;
+    pinnacles?: Array<{ ageRange: string; pinnacleNumber: number }>;
   };
   geneKeys?: {
     lifeTheme: number;
@@ -312,20 +316,46 @@ export async function generateFullReport(
     
     pdf.setFontSize(11);
     pdf.setTextColor(255, 255, 255);
-    pdf.text(`Lebensweg: ${num.lifePath}`, 20, yPos);
+    pdf.text(`Lebensweg: ${num.lifePathString}`, 20, yPos);
     yPos += 7;
-    pdf.text(`Schicksalszahl: ${num.destiny}`, 20, yPos);
+    pdf.text(`Schicksalszahl: ${num.destinyNumber}`, 20, yPos);
     yPos += 7;
-    pdf.text(`Seelenverlangen: ${num.soulUrge}`, 20, yPos);
+    if (num.hasMasterNumber) {
+      pdf.text('Enthält eine Meisterzahl', 20, yPos);
+      yPos += 7;
+    }
+    if (num.soulUrgeString) {
+      pdf.text(`Seelenverlangen: ${num.soulUrgeString}`, 20, yPos);
+      yPos += 7;
+    }
+    if (num.expressionString) {
+      pdf.text(`Ausdruck: ${num.expressionString}`, 20, yPos);
+      yPos += 7;
+    }
+    pdf.text(`Persönliches Jahr: ${num.personalYear}`, 20, yPos);
     yPos += 7;
-    pdf.text(`Persönlichkeit: ${num.personality}`, 20, yPos);
-    yPos += 7;
-    pdf.text(`Reifezahl: ${num.maturity}`, 20, yPos);
-    yPos += 7;
-    pdf.text(`Geburtstagszahl: ${num.birthDay}`, 20, yPos);
-    yPos += 7;
-    pdf.text(`Ausdruckszahl: ${num.expression}`, 20, yPos);
-    yPos += 15;
+
+    if (num.pinnacles?.length) {
+      yPos += 3;
+      pdf.text('Höhepunkte:', 20, yPos);
+      yPos += 7;
+      num.pinnacles.forEach((pinnacle) => {
+        pdf.text(`  ${pinnacle.ageRange}: ${pinnacle.pinnacleNumber}`, 20, yPos);
+        yPos += 6;
+      });
+    }
+
+    if (num.challenges?.length) {
+      yPos += 3;
+      pdf.text('Herausforderungen:', 20, yPos);
+      yPos += 7;
+      num.challenges.forEach((challenge) => {
+        pdf.text(`  ${challenge.ageRange}: ${challenge.challengeNumber}`, 20, yPos);
+        yPos += 6;
+      });
+    }
+
+    yPos += 9;
   }
 
   // Gene Keys Section

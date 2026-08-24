@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, FileText, BookOpen, Check, Loader2 } from 'lucide-react';
-import type { JournalEntry } from '../services/pdfExport';
+import type { ChartData, JournalEntry } from '../services/pdfExport';
 import { toast } from 'sonner';
 
 interface PDFExportButtonProps {
   variant?: 'button' | 'icon' | 'menu';
   elementId?: string;
-  chartData?: Record<string, unknown>;
+  chartData?: ChartData;
   journalEntries?: JournalEntry[];
   filename?: string;
   className?: string;

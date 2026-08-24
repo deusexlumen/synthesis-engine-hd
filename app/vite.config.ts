@@ -42,7 +42,25 @@ export default defineConfig(({ mode }) => ({
           if (id.includes('lucide-react')) {
             return 'vendor-icons';
           }
-          return 'vendor';
+
+          // The PDF stack is reached only through the dynamic import in
+          // PDFExportButton, so these chunks stay lazy. They are named
+          // separately so neither crosses the 500kB warning threshold —
+          // raising that limit instead would also hide a regression in the
+          // chunks that DO load on first paint.
+          if (id.includes('jspdf')) {
+            return 'vendor-pdf';
+          }
+          if (id.includes('html2canvas')) {
+            return 'vendor-canvas';
+          }
+
+          // Everything else is left to Rollup. A catch-all 'vendor' chunk
+          // would be statically imported by the entry, which hoists the
+          // dependencies of dynamic imports into the initial load — jspdf and
+          // html2canvas alone added ~750kB that way, defeating the lazy
+          // import in PDFExportButton.
+          return undefined;
         },
       },
     },

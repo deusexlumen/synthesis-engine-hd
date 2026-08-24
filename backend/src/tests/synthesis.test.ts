@@ -1,10 +1,11 @@
 /**
  * Synthesis Routes API Contract Tests (supertest)
  *
- * Exercises the real synthesisRouter with a mocked OpenAI client (the route
- * instantiates `new OpenAI()` at module load, which would throw without an
- * API key — and no test should ever hit the real API), a mocked
- * verifyAccessToken (FREE + PREMIUM) and an in-memory synthesisCache fake.
+ * Exercises the real synthesisRouter with a mocked OpenAI client (no test
+ * should ever hit the real API), a mocked verifyAccessToken (FREE + PREMIUM)
+ * and an in-memory synthesisCache fake.
+ *
+ * The unmocked no-key path lives in synthesisNoApiKey.test.ts.
  */
 
 import express from 'express';

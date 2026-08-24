@@ -99,6 +99,21 @@ services:
       - key: OPENAI_API_KEY
         sync: false
 
+      # Stripe billing. Unset, /api/billing/* answers 503
+      # BILLING_NOT_CONFIGURED and the rest of the API is unaffected.
+      # STRIPE_WEBHOOK_SECRET belongs to the endpoint registered in the
+      # Stripe dashboard: https://<api-host>/api/billing/webhook
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_BASIC
+        sync: false
+      - key: STRIPE_PRICE_PREMIUM
+        sync: false
+      - key: STRIPE_PRICE_PRO
+        sync: false
+
       # Professional ephemeris stays off: this image is built without the
       # native sweph module, so the resolver would fall back to the standard
       # provider anyway. Flipping this to true needs the WITH_SWEPH=true image
